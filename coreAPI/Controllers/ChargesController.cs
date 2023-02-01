@@ -1,6 +1,7 @@
 ﻿using coreAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 
 namespace coreAPI.Controllers
 {
@@ -14,7 +15,18 @@ namespace coreAPI.Controllers
         {
             _context = context;
         }
+
         [HttpGet]
+        [Route("GetVersion")]
+        public async Task<ActionResult<Version>> GetVersion()
+        {
+            await Task.Delay(0);
+            var Version = typeof(ChargesController).Assembly.GetName().Version;
+            return Ok(Version);
+        }
+
+        [HttpGet]
+        [Route("GetCharges")]
         public async Task<ActionResult<ChargingProcess>> GetCharges()
         {
             //return Ok(await _context.ChargingProcesses.ToListAsync());
@@ -23,7 +35,7 @@ namespace coreAPI.Controllers
         }
 
         [HttpGet]
-        [Route("api/[controller]/ProcessDrives")]
+        [Route("ProcessDrives")]
         public async Task<ActionResult<int>> ProcessDrives()
         {
             try
@@ -41,7 +53,7 @@ namespace coreAPI.Controllers
         }
 
         [HttpPost]
-        [Route("api/[controller]/Union")]
+        [Route("Union")]
         public async Task<ActionResult<ChargingProcess>> Union(int SourceID, int TargetID)
         {
 
