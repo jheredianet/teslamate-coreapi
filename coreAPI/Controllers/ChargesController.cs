@@ -1,6 +1,7 @@
 ﻿using coreAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics.Metrics;
 using System.Reflection;
 
 namespace coreAPI.Controllers
@@ -108,101 +109,58 @@ namespace coreAPI.Controllers
 
         private int processDrivesOnDatabase()
         {
+            // var carID = 1;
+            var counter = 0;
+
+            // This stays just as an explample. It's directly replaced by Continues Trips Dashboard
+
+            /*
             DateTime? LastEndDate = new DateTime();
             var lastReg = _context.OnlyDrives.OrderByDescending(c => c.EndDate).Take(1).SingleOrDefault();
             if (lastReg != null) LastEndDate = lastReg.EndDate;
 
-            #region 'Old Code'
-            //var car_efficiency = (from car in _context.Cars where car.Id == 1 select car.Efficiency).Single();
-            //var DriveData = (
-            //                from d in _context.Drives
-            //                where d.StartDate >= LastEndDate && d.EndDate != null
-            //                select new
-            //                {
-            //                    idTemp = d.Id,
-            //                    start_date = d.StartDate,
-            //                    end_date = d.EndDate,
-            //                    drive = true,
-            //                    distance = d.Distance,
-            //                    duration_min = d.DurationMin,
-            //                    Temperature = d.OutsideTempAvg,
-            //                    StartRatedRangeKm = Convert.ToDouble(d.StartRatedRangeKm)
-            //                    //EndRatedRangeKm = Convert.ToDouble(d.EndRatedRangeKm)
-            //                    //efficiency = d.StartRatedRangeKm.HasValue && d.EndRatedRangeKm.HasValue && d.Distance.HasValue && (d.EndRatedRangeKm - d.StartRatedRangeKm) > 0 ? d.Distance / Convert.ToDouble(d.EndRatedRangeKm - d.StartRatedRangeKm) : null   //Convert.ToDecimal(d.Distance.ToString()) / (Convert.ToDecimal(d.EndRatedRangeKm.ToString()) - Convert.ToDecimal(d.StartRatedRangeKm.ToString())),
-            //                    //consumption_kWh = Convert.ToDecimal(0) //Convert.ToDecimal(Convert.ToDecimal(d.EndRatedRangeKm.ToString()) - Convert.ToDecimal(d.StartRatedRangeKm.ToString())) * Convert.ToDecimal(car_efficiency)
-            //                }
-            //                )
-            //        .Concat(
-            //                from c in _context.ChargingProcesses
-            //                where c.StartDate >= LastEndDate && c.EndDate != null
-            //                select new
-            //                {
-            //                    idTemp = c.Id,
-            //                    start_date = c.StartDate,
-            //                    end_date = c.EndDate,
-            //                    drive = false,
-            //                    distance = (double?)0,
-            //                    duration_min = (short?)0,
-            //                    Temperature = c.OutsideTempAvg,
-            //                    StartRatedRangeKm = Convert.ToDouble(0),
-            //                    //EndRatedRangeKm = 0.0
-            //                    //efficiency = (double?)0 //Convert.ToDecimal(0.0),
-            //                    //consumption_kWh = 0.0
-            //                }
-            //                )
-            //        .OrderBy(x => x.start_date);
-            #endregion
+            // Get Data
+            var Efficiency = (from c in _context.Cars where c.Id == carID select c.Efficiency).Single();
+            var lastCompleteCharges = (from cp in _context.ChargingProcesses where cp.CarId == carID && cp.EndDate >= LastEndDate orderby cp.StartDate select cp.EndDate).ToList();
 
-            // Get Data from view
-            //var DriveData = from d in _context.DriveDataViews  where d.StartDate >= LastEndDate && d.EndDate != null select d ;
-            var DriveData = from d in _context.DriveDataViews where d.StartDate >= LastEndDate && d.EndDate >= DateTime.MinValue select d;
-            var drive = new OnlyDrive();
-            var counter = 0;
-            var driveproccesed = 0;
-            foreach (var i in DriveData)
+            // Now from the dates let's get the drives
+            for (int i = 0; i < lastCompleteCharges.Count() - 1; i++) // Just process when there are at leat two charges
             {
-                if (i.drive == 1) // Is drive
+                var fromDate = lastCompleteCharges[i];
+                var toDate = lastCompleteCharges[i + 1];
+
+                // Get Data from View
+                var DriveData = from d in _context.Drives
+                                where (d.StartDate >= fromDate && d.EndDate <= toDate) &&
+                                    d.Distance > 1 && d.DurationMin > 0 
+                                orderby d.StartDate
+                                select d;
+                var Regs = DriveData.Count();
+
+                if (Regs > 0)
                 {
-                    if (drive.StartDate.Year < 1900)
-                    { // Just the first time take data from related tables
-                        drive.StartDate = i.StartDate;
-                        drive.StartBatteryLevel = i.StartBatteryLevel;
-                    }
-                    drive.Distance += i.Distance;
-                    drive.DurationMin = Convert.ToInt16(drive.DurationMin + i.DurationMin);
-                    drive.EndDate = i.EndDate;
-                    drive.EndBatteryLevel = i.EndBatteryLevel;
-                    drive.Temperature += i.Temperature;
-                    drive.SpeedAvg += i.SpeedAvg;
-                    drive.PowerMax = i.PowerMax > drive.PowerMax ? i.PowerMax : drive.PowerMax;
-                    drive.Consumption_kWh += i.Consumption_kWh;
-                    drive.Consumption_kWh_km += i.Consumption_kWh_km;
-                    drive.Efficiency += i.Efficiency;
-                    driveproccesed += 1;
-                }
-                else // Is Charge, reset
-                {
-                    // if (drive.StartDate.Year >= 1900 && drive.EndDate != null)
-                    if (drive.StartDate.Year >= 1900 && drive.EndDate >= DateTime.MinValue)
-                    {
-                        // Calculate means
-                        drive.Temperature /= driveproccesed;
-                        drive.SpeedAvg /= driveproccesed;
-                        drive.PowerMax /= driveproccesed;
-                        drive.Consumption_kWh_km /= driveproccesed;
-                        drive.Efficiency /= driveproccesed;
-
-                        _context.OnlyDrives.Add(drive);
-
-                        drive = new OnlyDrive();
-                        driveproccesed = 0;
-
-                        // Drives merged
-                        counter += 1;
-                    }
+                    var Positions = from p in _context.Positions where p.DriveId >= DriveData.First().Id && p.DriveId <= DriveData.Last().Id orderby p.Date select p.UsableBatteryLevel;
+                    var drive = new OnlyDrive();
+                    drive.StartDate = DriveData.First().StartDate;
+                    drive.StartBatteryLevel = Convert.ToInt16(Positions.First());
+                    drive.EndBatteryLevel = Convert.ToInt16(Positions.Last());
+                    drive.Distance = Convert.ToDouble(DriveData.Last().EndKm - DriveData.First().StartKm); // Convert.ToDouble(DriveData.Sum(d => d.Distance));
+                    drive.DurationMin = Convert.ToInt16(DriveData.Sum(d => d.DurationMin));
+                    drive.EndDate = Convert.ToDateTime(DriveData.Last().EndDate);
+                    drive.Temperature = Convert.ToDecimal(DriveData.Average(d => d.OutsideTempAvg));
+                    drive.SpeedAvg = Convert.ToDecimal(drive.Distance / drive.DurationMin * 60);
+                    drive.PowerMax = Convert.ToInt16(DriveData.Max(d => d.PowerMax));
+                    var Range_diff = Convert.ToDouble(DriveData.First().StartRatedRangeKm - DriveData.Last().EndRatedRangeKm);
+                    drive.Consumption_kWh = Convert.ToDouble(Range_diff * Efficiency);
+                    drive.Consumption_kWh_km = drive.Consumption_kWh / drive.Distance * 1000;
+                    drive.Efficiency = drive.Distance / Range_diff;
+                    _context.OnlyDrives.Add(drive);
+                    counter += Regs;
+                    _context.SaveChanges();
                 }
             }
-            _context.SaveChanges();
+            */
+
             return counter;
         }
     }
