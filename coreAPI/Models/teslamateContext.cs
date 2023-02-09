@@ -19,7 +19,7 @@ namespace coreAPI.Models
         public virtual DbSet<CarSetting> CarSettings { get; set; } = null!;
         public virtual DbSet<Charge> Charges { get; set; } = null!;
         public virtual DbSet<ChargingProcess> ChargingProcesses { get; set; } = null!;
-        public virtual DbSet<Drife> Drives { get; set; } = null!;
+        public virtual DbSet<Drive> Drives { get; set; } = null!;
         public virtual DbSet<Geofence> Geofences { get; set; } = null!;
         public virtual DbSet<Position> Positions { get; set; } = null!;
         public virtual DbSet<SchemaMigration> SchemaMigrations { get; set; } = null!;
@@ -388,7 +388,7 @@ namespace coreAPI.Models
                     .HasConstraintName("charging_processes_position_id_fkey");
             });
 
-            modelBuilder.Entity<Drife>(entity =>
+            modelBuilder.Entity<Drive>(entity =>
             {
                 entity.ToTable("drives");
 

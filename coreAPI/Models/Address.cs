@@ -8,8 +8,8 @@ namespace coreAPI.Models
         public Address()
         {
             ChargingProcesses = new HashSet<ChargingProcess>();
-            DrifeEndAddresses = new HashSet<Drife>();
-            DrifeStartAddresses = new HashSet<Drife>();
+            DrifeEndAddresses = new HashSet<Drive>();
+            DrifeStartAddresses = new HashSet<Drive>();
         }
 
         public int Id { get; set; }
@@ -33,7 +33,7 @@ namespace coreAPI.Models
         public string? OsmType { get; set; }
 
         public virtual ICollection<ChargingProcess> ChargingProcesses { get; set; }
-        public virtual ICollection<Drife> DrifeEndAddresses { get; set; }
-        public virtual ICollection<Drife> DrifeStartAddresses { get; set; }
+        public virtual ICollection<Drive> DrifeEndAddresses { get; set; }
+        public virtual ICollection<Drive> DrifeStartAddresses { get; set; }
     }
 }
