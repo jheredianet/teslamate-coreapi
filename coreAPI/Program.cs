@@ -14,6 +14,16 @@ builder.Services.AddSwaggerGen();
 var ConnectionString = builder.Configuration.GetConnectionString("PostgreSqlConnection");
 builder.Services.AddDbContext<teslamateContext>(options => options.UseNpgsql(ConnectionString));
 
+// Access to InfluxDB
+builder.Services.AddTransient<InfluxDbConnection>(provider => 
+    new InfluxDbConnection(
+        builder.Configuration["InfluxDB:Url"], 
+        builder.Configuration["InfluxDB:Token"], 
+        builder.Configuration["InfluxDB:Bucket"],
+        builder.Configuration["InfluxDB:Organization"])
+    );
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

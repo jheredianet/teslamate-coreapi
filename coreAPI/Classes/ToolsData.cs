@@ -1,21 +1,73 @@
 ﻿using coreAPI.Models;
+using InfluxDB.Client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
+
 
 namespace coreAPI.Classes
 {
     public class ToolsData
     {
         private readonly teslamateContext db = new teslamateContext();
+        private readonly InfluxDbConnection influxDbConnection;
+
+        private IQueryable<ChargingProcess> GetChargingProcess()
+        {
+            return db.ChargingProcesses
+                .Where(c => c.ChargeEnergyAdded > 0 && c.Cost == null && c.EndDate != null); ;
+        }
 
         public ToolsData(teslamateContext context)
         {
             db = context;
+            influxDbConnection = context.GetService<InfluxDbConnection>();
         }
 
-        public async Task<List<ChargingProcess>> ListLastCharges()
+        public async Task<List<ChargingProcess>> ListChargingProcessWithoutCost()
         {
-            return await db.ChargingProcesses.OrderByDescending(c => c.EndDate).Take(5).ToListAsync();
+            // Charges with cost null  and added some kWh
+            // SELECT * FROM charging_processes WHERE charge_energy_added > 0 and cost is NULL 
+
+            return await GetChargingProcess()
+                .OrderByDescending(c => c.EndDate).ToListAsync();
+            //return await db.ChargingProcesses.OrderByDescending(c => c.EndDate).Take(5).ToListAsync();
+        }
+
+        public async Task<List<ChargingProcess>> ListChargingProcessWithoutCostAtHome()
+        {
+            // Get charges from PostgreSQL
+            var charges = GetChargingProcess().Where(c => c.GeofenceId == 1).OrderByDescending(c => c.EndDate);
+
+            // Connect to InfluxDB
+            using var client = new InfluxDBClient(influxDbConnection.Url, influxDbConnection.Token);
+
+            foreach (var charge in charges)
+            {
+                var start = charge.StartDate.ToString("yyyy-MM-ddTHH:mm:ssZ");
+                var end = charge.EndDate?.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+                var flux = string.Format("from(bucket: \"{0}\")", influxDbConnection.Bucket) +
+                    string.Format(" |> range(start: {0}, stop: {1}) ", start, end) +
+                    " |> filter(fn: (r) => r._measurement == \"OpenEVSEConsumption\" and (r._field == \"Cost\" or r._field == \"Consumption\" or r._field == \"CustomCost\"))" +
+                    " |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")" +
+                    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.Cost * 1.05 }))" +
+                    " |> sum()";
+
+                var fluxTables = await client.GetQueryApi().QueryAsync(flux, influxDbConnection.Organization);
+                fluxTables.ForEach(fluxTable =>
+                {
+                    var fluxRecords = fluxTable.Records;
+                    fluxRecords.ForEach(fluxRecord =>
+                    {
+                        //var t = fluxRecord.GetTime();
+                        // Update PostgreSQL record
+                        charge.Cost = Convert.ToDecimal(fluxRecord.GetValue());
+                    });
+                });
+            }
+            db.SaveChanges();
+            return await charges.ToListAsync();
         }
 
         public async Task<List<Drive>> IncompleteDrives()

@@ -27,11 +27,11 @@ namespace coreAPI.Controllers
         }
 
         [HttpGet]
-        [Route("GetCharges")]
-        public async Task<ActionResult<ChargingProcess>> GetCharges()
+        [Route("GetChargesWithoutCost")]
+        public async Task<ActionResult<ChargingProcess>> GetChargesWithoutCost()
         {
-            List<ChargingProcess> lastFiveCharges = await Tools.ListLastCharges();
-            return Ok(lastFiveCharges);
+            List<ChargingProcess> ChargesWithoutCost = await Tools.ListChargingProcessWithoutCost();
+            return Ok(ChargesWithoutCost);
         }
 
         [HttpGet]
@@ -49,6 +49,25 @@ namespace coreAPI.Controllers
             var IncompleteDrives = await Task.Run(() => Tools.ShortTimeBetweenDrives(Minutes));
             return Ok(IncompleteDrives);
         }
+
+        [HttpPost]
+        [Route("ProcessChargesAtHomeWithoutCost")]
+        public async Task<ActionResult<int>> ProcessChargesAtHomeWithoutCost()
+        {
+            try
+            {
+                var ChargingProcessWithoutCostAtHome = await Task.Run(() => Tools.ListChargingProcessWithoutCostAtHome());
+                return Ok(ChargingProcessWithoutCostAtHome);
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+
+        }
+
 
         [HttpPost]
         [Route("ProcessShortDrives")]
