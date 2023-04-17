@@ -56,7 +56,7 @@ namespace coreAPI.Controllers
         {
             try
             {
-                var ChargingProcessWithoutCostAtHome = await Task.Run(() => Tools.ListChargingProcessWithoutCostAtHome());
+                var ChargingProcessWithoutCostAtHome = await Task.Run(() => Tools.ProcessChargesAtHomeWithoutCost());
                 return Ok(ChargingProcessWithoutCostAtHome);
             }
             catch (Exception ex)

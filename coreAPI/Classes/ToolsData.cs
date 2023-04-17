@@ -34,7 +34,7 @@ namespace coreAPI.Classes
             //return await db.ChargingProcesses.OrderByDescending(c => c.EndDate).Take(5).ToListAsync();
         }
 
-        public async Task<List<ChargingProcess>> ListChargingProcessWithoutCostAtHome()
+        public async Task<List<ChargingProcess>> ProcessChargesAtHomeWithoutCost()
         {
             // Get charges from PostgreSQL
             var charges = GetChargingProcess().Where(c => c.GeofenceId == 1).OrderByDescending(c => c.EndDate);
@@ -66,8 +66,9 @@ namespace coreAPI.Classes
                     });
                 });
             }
+            var updatesCharges = await charges.ToListAsync();
             db.SaveChanges();
-            return await charges.ToListAsync();
+            return updatesCharges;
         }
 
         public async Task<List<Drive>> IncompleteDrives()
