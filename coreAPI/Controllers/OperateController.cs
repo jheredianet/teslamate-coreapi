@@ -50,9 +50,17 @@ namespace coreAPI.Controllers
             return Ok(IncompleteDrives);
         }
 
+        [HttpGet]
+        [Route("ImportExcelFromUFD")]
+        public async Task<ActionResult<int>> ImportExcelFromUFD()
+        {
+            int nRecords = await Tools.ImportExcelFromUFD();
+            return Ok(nRecords);
+        }
+
         [HttpPost]
         [Route("ProcessChargesAtHomeWithoutCost")]
-        public async Task<ActionResult<int>> ProcessChargesAtHomeWithoutCost()
+        public async Task<ActionResult<ChargingProcess>> ProcessChargesAtHomeWithoutCost()
         {
             try
             {

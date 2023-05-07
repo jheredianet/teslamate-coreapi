@@ -15,12 +15,12 @@ var ConnectionString = builder.Configuration.GetConnectionString("PostgreSqlConn
 builder.Services.AddDbContext<teslamateContext>(options => options.UseNpgsql(ConnectionString));
 
 // Access to InfluxDB
-builder.Services.AddTransient<InfluxDbConnection>(provider => 
+_ = builder.Services.AddTransient(provider =>
     new InfluxDbConnection(
-        builder.Configuration["InfluxDB:Url"], 
-        builder.Configuration["InfluxDB:Token"], 
-        builder.Configuration["InfluxDB:Bucket"],
-        builder.Configuration["InfluxDB:Organization"])
+        builder.Configuration["InfluxDB:Url"] ?? "",
+        builder.Configuration["InfluxDB:Token"] ?? "",
+        builder.Configuration["InfluxDB:Bucket"] ?? "",
+        builder.Configuration["InfluxDB:Organization"] ?? "")
     );
 
 

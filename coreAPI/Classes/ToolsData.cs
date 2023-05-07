@@ -1,5 +1,8 @@
 ﻿using coreAPI.Models;
+using ExcelDataReader;
 using InfluxDB.Client;
+using InfluxDB.Client.Api.Domain;
+using InfluxDB.Client.Writes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
@@ -76,6 +79,56 @@ namespace coreAPI.Classes
             return await db.Drives.Where(d => d.EndDate == null).OrderBy(d => d.StartDate).ToListAsync();
         }
 
+        public async Task<int> ImportExcelFromUFD()
+        {
+            var Consumos = new List<ElectricConsumption>();
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            using (var stream = System.IO.File.Open("consumptions.xlsx", FileMode.Open, FileAccess.Read))
+            {
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                {
+                    do
+                    {
+                        while (reader.Read()) //Each ROW
+                        {
+                            // Skip first row
+                            if (reader.GetString(1) == "Fecha") continue;
+
+                            var c = new ElectricConsumption();
+                            string t = reader.GetValue(1).ToString() ?? "";
+                            string[] dateGroups = t.Split('/');
+                            var h = (Convert.ToInt32(reader.GetValue(2)) - 1).ToString() ?? "";
+                            string formattedNumber = h.PadLeft(2, '0');
+                            string timeFormat = $"{formattedNumber}:00:00";
+
+                            c.FechaHora = Convert.ToDateTime(string.Format("{0}-{1}-{2} {3}", dateGroups[2], dateGroups[1], dateGroups[0], timeFormat));
+                            c.Consumo = Convert.ToDouble((reader.GetValue(3).ToString() ?? "").Replace(',', '.'));
+                            c.RealLecture = (reader.GetValue(4).ToString() ?? "") == "Real";
+                            Consumos.Add(c);
+                        }
+                    } while (reader.NextResult()); //Move to NEXT SHEET
+                }
+            }
+
+            // Save Data to FluxDB
+            using var influxDBClient = new InfluxDBClient(influxDbConnection.Url, influxDbConnection.Token);
+            using (var writeApi = influxDBClient.GetWriteApi())
+            {
+                foreach (var c in Consumos)
+                {
+                    var point = PointData.Measurement("ElectricConsumption")
+                    .Tag("location", "Home")
+                    .Field("consumption", c.Consumo)
+                    .Field("reallecture", c.RealLecture ? 1 : 0)
+                    .Timestamp(c.FechaHora, WritePrecision.Ms);
+
+                    writeApi.WritePoint(point, influxDbConnection.Bucket, influxDbConnection.Organization);
+                }
+
+            }
+            return await Task.FromResult(Consumos.Count);
+        }
+
         public List<ShortTimeDrive> ShortTimeBetweenDrives(int Minutes)
         {
             var drives = new List<ShortTimeDrive>();
@@ -112,7 +165,6 @@ namespace coreAPI.Classes
             }
             return drives;
         }
-
 
         public List<Drive> JoinDrives(int SourceID, int TargetID)
         {
@@ -268,6 +320,8 @@ namespace coreAPI.Classes
             }
             return i;
         }
+
+
 
     }
 }
