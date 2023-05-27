@@ -76,6 +76,24 @@ namespace coreAPI.Controllers
 
         }
 
+        [HttpPost]
+        [Route("ProcessAndFixAddresses")]
+        public async Task<ActionResult<int>> ProcessAndFixAddresses()
+        {
+            try
+            {
+                var nRecords = await Task.Run(() => Tools.ProcessAndFixAddresses());
+                return Ok(nRecords);
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+
+        }
+
 
         [HttpPost]
         [Route("ProcessShortDrives")]

@@ -6,6 +6,7 @@ using InfluxDB.Client.Writes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 
 namespace coreAPI.Classes
@@ -209,6 +210,24 @@ namespace coreAPI.Classes
             db.SaveChanges();
 
             return Records;
+        }
+
+        public Task<int> ProcessAndFixAddresses()
+        {
+            // Update neighbourhood
+            var neighbourhood = db.Database.ExecuteSqlRaw("UPDATE addresses  SET neighbourhood = city WHERE neighbourhood is NULL");
+            Console.WriteLine(string.Format("Updated {0} neighbourhoods", neighbourhood));
+
+            var senSQL = "UPDATE addresses SET name = CASE " +
+                "WHEN road IS NOT NULL THEN road " +
+                "WHEN neighbourhood IS NOT NULL THEN neighbourhood " + 
+                "WHEN city IS NOT NULL THEN city " +
+                "ELSE state END " +
+                "WHERE name IS NULL";
+            var names = db.Database.ExecuteSqlRaw(senSQL);
+            Console.WriteLine(string.Format("Updated {0} addresse names", names));
+            
+            return Task.FromResult(neighbourhood + names);
         }
 
         public List<ChargingProcess> MixCharges(int SourceID, int TargetID)
