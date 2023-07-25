@@ -15,6 +15,7 @@ namespace coreAPI.Classes
     {
         private readonly teslamateContext db = new teslamateContext();
         private readonly InfluxDbConnection influxDbConnection;
+        private readonly AppSettings appSettings;
 
         private IQueryable<ChargingProcess> GetChargingProcess()
         {
@@ -26,6 +27,7 @@ namespace coreAPI.Classes
         {
             db = context;
             influxDbConnection = context.GetService<InfluxDbConnection>();
+            appSettings = context.GetService<AppSettings>();
         }
 
         public async Task<List<ChargingProcess>> ListChargingProcessWithoutCost()
@@ -84,48 +86,67 @@ namespace coreAPI.Classes
         {
             var Consumos = new List<ElectricConsumption>();
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-            using (var stream = System.IO.File.Open("consumptions.xlsx", FileMode.Open, FileAccess.Read))
+            var ImportPath = appSettings.ImportPath;
+            var ImportFile = Path.Combine(ImportPath, "consumptions.xlsx");
+            if (System.IO.File.Exists(ImportFile))
             {
-                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                using (var stream = System.IO.File.Open(ImportFile, FileMode.Open, FileAccess.Read))
                 {
-                    do
+                    using (var reader = ExcelReaderFactory.CreateReader(stream))
                     {
-                        while (reader.Read()) //Each ROW
+                        do
                         {
-                            // Skip first row
-                            if (reader.GetString(1) == "Fecha") continue;
+                            while (reader.Read()) //Each ROW
+                            {
+                                // Skip first row
+                                if (reader.GetString(1) == "Fecha") continue;
 
-                            var c = new ElectricConsumption();
-                            string t = reader.GetValue(1).ToString() ?? "";
-                            string[] dateGroups = t.Split('/');
-                            var h = (Convert.ToInt32(reader.GetValue(2)) - 1).ToString() ?? "";
-                            string formattedNumber = h.PadLeft(2, '0');
-                            string timeFormat = $"{formattedNumber}:00:00";
+                                var c = new ElectricConsumption();
+                                string t = reader.GetValue(1).ToString() ?? "";
+                                string[] dateGroups = t.Split('/');
+                                var h = (Convert.ToInt32(reader.GetValue(2)) - 1).ToString() ?? "";
+                                string formattedNumber = h.PadLeft(2, '0');
+                                string timeFormat = $"{formattedNumber}:00:00";
 
-                            c.FechaHora = Convert.ToDateTime(string.Format("{0}-{1}-{2} {3}", dateGroups[2], dateGroups[1], dateGroups[0], timeFormat));
-                            c.Consumo = Convert.ToDouble((reader.GetValue(3).ToString() ?? "").Replace(',', '.'));
-                            c.RealLecture = (reader.GetValue(4).ToString() ?? "") == "Real";
-                            Consumos.Add(c);
-                        }
-                    } while (reader.NextResult()); //Move to NEXT SHEET
+                                c.FechaHora = Convert.ToDateTime(string.Format("{0}-{1}-{2} {3}", dateGroups[2], dateGroups[1], dateGroups[0], timeFormat));
+                                c.Consumo = Convert.ToDouble((reader.GetValue(3).ToString() ?? "").Replace(',', '.'));
+                                c.RealLecture = (reader.GetValue(4).ToString() ?? "") == "Real";
+                                Consumos.Add(c);
+                            }
+                        } while (reader.NextResult()); //Move to NEXT SHEET
+                    }
+                }
+
+                // Save Data to FluxDB
+                using var influxDBClient = new InfluxDBClient(influxDbConnection.Url, influxDbConnection.Token);
+                using (var writeApi = influxDBClient.GetWriteApi())
+                {
+                    foreach (var c in Consumos)
+                    {
+                        var point = PointData.Measurement("ElectricConsumption")
+                        .Tag("location", "Home")
+                        .Field("consumption", c.Consumo)
+                        .Field("reallecture", c.RealLecture ? 1 : 0)
+                        .Timestamp(c.FechaHora, WritePrecision.Ms);
+
+                        writeApi.WritePoint(point, influxDbConnection.Bucket, influxDbConnection.Organization);
+                    }
+
+                }
+
+                // Rename Procesed File
+                if (Consumos.Count > 0)
+                {
+
+                    var minDate = Consumos.Min(c => c.FechaHora).ToString("yyyyMMdd");
+                    var maxDate = Consumos.Max(c => c.FechaHora).ToString("yyyyMMdd");
+                    var newFileName = string.Format("consumptions_{0}-{1}.xlsx", minDate, maxDate);
+                    System.IO.File.Move(ImportFile, Path.Combine(ImportPath, newFileName));
                 }
             }
-
-            // Save Data to FluxDB
-            using var influxDBClient = new InfluxDBClient(influxDbConnection.Url, influxDbConnection.Token);
-            using (var writeApi = influxDBClient.GetWriteApi())
+            else
             {
-                foreach (var c in Consumos)
-                {
-                    var point = PointData.Measurement("ElectricConsumption")
-                    .Tag("location", "Home")
-                    .Field("consumption", c.Consumo)
-                    .Field("reallecture", c.RealLecture ? 1 : 0)
-                    .Timestamp(c.FechaHora, WritePrecision.Ms);
-
-                    writeApi.WritePoint(point, influxDbConnection.Bucket, influxDbConnection.Organization);
-                }
-
+                throw new FileNotFoundException(string.Format("File not found: {0} - App base Path {1}", ImportFile, appSettings.CurrentPath));
             }
             return await Task.FromResult(Consumos.Count);
         }
@@ -220,13 +241,13 @@ namespace coreAPI.Classes
 
             var senSQL = "UPDATE addresses SET name = CASE " +
                 "WHEN road IS NOT NULL THEN road " +
-                "WHEN neighbourhood IS NOT NULL THEN neighbourhood " + 
+                "WHEN neighbourhood IS NOT NULL THEN neighbourhood " +
                 "WHEN city IS NOT NULL THEN city " +
                 "ELSE state END " +
                 "WHERE name IS NULL";
             var names = db.Database.ExecuteSqlRaw(senSQL);
             Console.WriteLine(string.Format("Updated {0} addresse names", names));
-            
+
             return Task.FromResult(neighbourhood + names);
         }
 
