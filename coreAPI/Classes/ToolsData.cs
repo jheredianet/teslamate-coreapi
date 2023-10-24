@@ -6,6 +6,7 @@ using InfluxDB.Client.Writes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
+using System.Xml.Linq;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 
@@ -361,7 +362,20 @@ namespace coreAPI.Classes
             return i;
         }
 
-
+        public List<GpxWayPoint> XmltoWpt(string xml)
+        {
+            XDocument gpxDocument = XDocument.Parse(xml);
+            XNamespace ns = "http://www.topografix.com/GPX/1/1";
+            // Query the XML to extract wpt elements and their child elements
+            var wptData = gpxDocument.Descendants(ns + "wpt").Select(wpt => new GpxWayPoint
+            {
+                Lat = wpt.Attribute("lat")?.Value,
+                Lon = wpt.Attribute("lon")?.Value,
+                Name = wpt.Element(ns + "name")?.Value,
+                Desc = wpt.Element(ns + "desc")?.Value
+            }).ToList();
+            return wptData;
+        }
 
     }
 }
