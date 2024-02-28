@@ -4,7 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<AssemblyVersion>1.3.5.0</AssemblyVersion>
+		<AssemblyVersion>2024.02.28</AssemblyVersion>
 		<Version>$(AssemblyVersion)</Version>
 		<Copyright>Copyright @juanheredia - 2023</Copyright>
 	</PropertyGroup>
