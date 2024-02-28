@@ -3,7 +3,6 @@ using coreAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using System.Text;
-using System.Xml.Linq;
 
 namespace coreAPI.Controllers
 {
@@ -278,5 +277,37 @@ namespace coreAPI.Controllers
                 return BadRequest(msg);
             }
         }
+
+        [HttpPost]
+        [Route("FixData")]
+        public async Task<ActionResult<string>> FixData(int id, string typeOfRecord)
+        {
+            // Validate typeOfRecord
+            if (typeOfRecord != "Drive" && typeOfRecord != "Charge")
+            {
+                return BadRequest("Invalid typeOfRecord. Allowed values are 'Drive' or 'Charge'.");
+            }
+            string command;
+            if (typeOfRecord == "Drive")
+            {
+                command = string.Format("docker exec teslamate bin/teslamate rpc \"TeslaMate.Repo.get!(TeslaMate.Log.Drive, {0}) |> TeslaMate.Log.close_drive()\"", id);
+            }
+            else
+            {
+                command = string.Format("docker exec teslamate bin/teslamate rpc \"TeslaMate.Repo.get!(TeslaMate.Log.ChargingProcess, {0}) |> TeslaMate.Log.complete_charging_process()\"", id);
+            }
+            try
+            {
+                var result = await Task.Run(() => Tools.runSSHCommand(command));
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+        }
     }
 }
+

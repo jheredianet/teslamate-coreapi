@@ -3,9 +3,11 @@ using ExcelDataReader;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
+using Renci.SshNet;
 using System.Xml.Linq;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
@@ -377,5 +379,40 @@ namespace coreAPI.Classes
             return wptData;
         }
 
+        internal ActionResult<string> runSSHCommand(string command)
+        {
+            string MessageReturn = string.Empty;
+
+            if (string.IsNullOrEmpty(appSettings.sshKeyFile) ||
+            string.IsNullOrEmpty(appSettings.sshUserName) ||
+            string.IsNullOrEmpty(appSettings.sshServer))
+            {
+                throw new Exception("No credencials found for accesing SSH server");
+            }
+            else
+            {
+                var keyFile = Path.Combine(appSettings.CurrentPath, appSettings.sshKeyFile);
+                if (!System.IO.File.Exists(keyFile))
+                {
+                    throw new Exception(string.Format("No key file {0}, for accesing SSH server found", keyFile));
+                }
+
+                // Load your private key file (replace with the actual path to your key file)
+                var privateKey = new PrivateKeyFile(Path.Combine(appSettings.CurrentPath, appSettings.sshKeyFile));
+                // Create a list of authentication methods (only private key in this case)
+                var methods = new List<AuthenticationMethod> { new PrivateKeyAuthenticationMethod(appSettings.sshUserName, privateKey) };
+                var connInfo = new Renci.SshNet.ConnectionInfo(appSettings.sshServer, appSettings.sshPort, appSettings.sshUserName, methods.ToArray());
+
+                using (var sshClient = new SshClient(connInfo))
+                {
+                    sshClient.Connect();
+                    var result = sshClient.RunCommand(command);
+                    MessageReturn = (result.ExitStatus == 0) ? result.Result : result.Error;
+
+                    sshClient.Disconnect();
+                }
+                return MessageReturn;
+            }
+        }
     }
 }
