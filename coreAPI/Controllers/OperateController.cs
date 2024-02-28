@@ -1,6 +1,7 @@
 ﻿using coreAPI.Classes;
 using coreAPI.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using System.Text;
 using System.Xml.Linq;
 
@@ -12,11 +13,13 @@ namespace coreAPI.Controllers
     {
         private readonly teslamateContext _context;
         private readonly ToolsData Tools;
+        private readonly AppSettings appSettings;
 
         public OperateController(teslamateContext context)
         {
             _context = context;
             Tools = new ToolsData(_context);
+            appSettings = context.GetService<AppSettings>();
         }
 
         [HttpGet]
@@ -212,6 +215,61 @@ namespace coreAPI.Controllers
                 }
                 returnText.Append("&travelmode=driving&dir_action=navigate");
                 return Ok(returnText.ToString());
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+        }
+
+        [HttpPost]
+        [Route("UploadFile")]
+        public async Task<ActionResult<string>> UploadFile(IFormFile file)
+        {
+            try
+            {
+                if (file != null && file.Length > 0)
+                {
+                    // Process the uploaded file (e.g., save it to disk, read its content, etc.)
+                    // Example: Save the file to a specific location
+                    var filePath = Path.Combine(appSettings.ImportPath, file.FileName);
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await file.CopyToAsync(stream);
+                    }
+                    // Other processing logic as needed
+                    return Ok("File uploaded successfully!");
+                }
+                return BadRequest("No file was uploaded.");
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+        }
+
+        [HttpPost]
+        [Route("DownloadFile")]
+        [ProducesResponseType(typeof(FileContentResult), 200)]
+        public async Task<ActionResult> DownloadFile(string file)
+        {
+            try
+            {
+                // Read the file content (e.g., from disk, database, etc.)
+                var fileBytes = await System.IO.File.ReadAllBytesAsync(Path.Combine(appSettings.ImportPath, file));
+
+                // Set the appropriate content type and file name
+                var contentType = "application/octet-stream"; // Adjust based on your file type
+                var fileResult = new FileContentResult(fileBytes, contentType)
+                {
+                    FileDownloadName = file
+                };
+
+                return fileResult;
             }
             catch (Exception ex)
             {
