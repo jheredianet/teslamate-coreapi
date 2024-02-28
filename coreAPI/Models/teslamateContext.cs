@@ -19,7 +19,7 @@ namespace coreAPI.Models
         public virtual DbSet<CarSetting> CarSettings { get; set; } = null!;
         public virtual DbSet<Charge> Charges { get; set; } = null!;
         public virtual DbSet<ChargingProcess> ChargingProcesses { get; set; } = null!;
-        public virtual DbSet<Drife> Drives { get; set; } = null!;
+        public virtual DbSet<Drive> Drives { get; set; } = null!;
         public virtual DbSet<Geofence> Geofences { get; set; } = null!;
         public virtual DbSet<Position> Positions { get; set; } = null!;
         public virtual DbSet<SchemaMigration> SchemaMigrations { get; set; } = null!;
@@ -27,8 +27,8 @@ namespace coreAPI.Models
         public virtual DbSet<State> States { get; set; } = null!;
         public virtual DbSet<Token> Tokens { get; set; } = null!;
         public virtual DbSet<Update> Updates { get; set; } = null!;
-        public virtual DbSet<OnlyDrive> OnlyDrives { get; set; } = null!;
-        public virtual DbSet<DriveDataView> DriveDataViews { get; set; } = null!;
+        //public virtual DbSet<OnlyDrive> OnlyDrives { get; set; } = null!;
+        //public virtual DbSet<DriveDataView> DriveDataViews { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -388,7 +388,7 @@ namespace coreAPI.Models
                     .HasConstraintName("charging_processes_position_id_fkey");
             });
 
-            modelBuilder.Entity<Drife>(entity =>
+            modelBuilder.Entity<Drive>(entity =>
             {
                 entity.ToTable("drives");
 
@@ -776,57 +776,57 @@ namespace coreAPI.Models
             });
 
 
-            modelBuilder.Entity<OnlyDrive>(entity =>
-            {
-                entity.ToTable("only_drives");
+            //modelBuilder.Entity<OnlyDrive>(entity =>
+            //{
+            //    entity.ToTable("only_drives");
 
-                entity.Property(e => e.Id)
-                    .HasColumnName("id")
-                    .HasDefaultValueSql("nextval('only_drives_id_seq'::regclass)");
-                entity.Property(e => e.EndDate)
-                    .HasColumnType("timestamp without time zone")
-                    .HasColumnName("end_date");
+            //    entity.Property(e => e.Id)
+            //        .HasColumnName("id")
+            //        .HasDefaultValueSql("nextval('only_drives_id_seq'::regclass)");
+            //    entity.Property(e => e.EndDate)
+            //        .HasColumnType("timestamp without time zone")
+            //        .HasColumnName("end_date");
 
-                entity.Property(e => e.StartDate)
-                    .HasColumnType("timestamp without time zone")
-                    .HasColumnName("start_date");
-                entity.Property(e => e.Distance).HasColumnName("distance");
-                entity.Property(e => e.DurationMin).HasColumnName("duration_min");
-                entity.Property(e => e.StartBatteryLevel).HasColumnName("start_soc");
-                entity.Property(e => e.EndBatteryLevel).HasColumnName("end_soc");
-                entity.Property(e => e.Temperature).HasColumnName("avg_temperature");
-                entity.Property(e => e.SpeedAvg).HasColumnName("avg_speed");
-                entity.Property(e => e.PowerMax).HasColumnName("power_max");
-                entity.Property(e => e.Consumption_kWh).HasColumnName("consumption_kwh");
-                entity.Property(e => e.Consumption_kWh_km).HasColumnName("consumption_kwh_km");
-                entity.Property(e => e.Efficiency).HasColumnName("efficiency");
-            });
+            //    entity.Property(e => e.StartDate)
+            //        .HasColumnType("timestamp without time zone")
+            //        .HasColumnName("start_date");
+            //    entity.Property(e => e.Distance).HasColumnName("distance");
+            //    entity.Property(e => e.DurationMin).HasColumnName("duration_min");
+            //    entity.Property(e => e.StartBatteryLevel).HasColumnName("start_soc");
+            //    entity.Property(e => e.EndBatteryLevel).HasColumnName("end_soc");
+            //    entity.Property(e => e.Temperature).HasColumnName("avg_temperature");
+            //    entity.Property(e => e.SpeedAvg).HasColumnName("avg_speed");
+            //    entity.Property(e => e.PowerMax).HasColumnName("power_max");
+            //    entity.Property(e => e.Consumption_kWh).HasColumnName("consumption_kwh");
+            //    entity.Property(e => e.Consumption_kWh_km).HasColumnName("consumption_kwh_km");
+            //    entity.Property(e => e.Efficiency).HasColumnName("efficiency");
+            //});
 
-            modelBuilder.Entity<DriveDataView>(entity =>
-            {
-                entity.HasNoKey();
-                entity.ToView("datadrives");
+            //modelBuilder.Entity<DriveDataView>(entity =>
+            //{
+            //    entity.HasNoKey();
+            //    entity.ToView("datadrives");
 
-                entity.Property(e => e.EndDate)
-                    .HasColumnType("timestamp without time zone")
-                    .HasColumnName("end_date");
+            //    entity.Property(e => e.EndDate)
+            //        .HasColumnType("timestamp without time zone")
+            //        .HasColumnName("end_date");
 
-                entity.Property(e => e.StartDate)
-                    .HasColumnType("timestamp without time zone")
-                    .HasColumnName("start_date");
+            //    entity.Property(e => e.StartDate)
+            //        .HasColumnType("timestamp without time zone")
+            //        .HasColumnName("start_date");
 
-                entity.Property(e => e.drive).HasColumnName("drive");
-                entity.Property(e => e.Distance).HasColumnName("distance_km");
-                entity.Property(e => e.DurationMin).HasColumnName("duration_min");
-                entity.Property(e => e.StartBatteryLevel).HasColumnName("start_battery_level");
-                entity.Property(e => e.EndBatteryLevel).HasColumnName("end_battery_level");
-                entity.Property(e => e.Temperature).HasColumnName("outside_temp_c");
-                entity.Property(e => e.SpeedAvg).HasColumnName("speed_avg_km");
-                entity.Property(e => e.PowerMax).HasColumnName("power_max");
-                entity.Property(e => e.Consumption_kWh).HasColumnName("consumption_kwh");
-                entity.Property(e => e.Consumption_kWh_km).HasColumnName("consumption_kwh_km");
-                entity.Property(e => e.Efficiency).HasColumnName("efficiency");
-            });
+            //    entity.Property(e => e.drive).HasColumnName("drive");
+            //    entity.Property(e => e.Distance).HasColumnName("distance_km");
+            //    entity.Property(e => e.DurationMin).HasColumnName("duration_min");
+            //    entity.Property(e => e.StartBatteryLevel).HasColumnName("start_battery_level");
+            //    entity.Property(e => e.EndBatteryLevel).HasColumnName("end_battery_level");
+            //    entity.Property(e => e.Temperature).HasColumnName("outside_temp_c");
+            //    entity.Property(e => e.SpeedAvg).HasColumnName("speed_avg_km");
+            //    entity.Property(e => e.PowerMax).HasColumnName("power_max");
+            //    entity.Property(e => e.Consumption_kWh).HasColumnName("consumption_kwh");
+            //    entity.Property(e => e.Consumption_kWh_km).HasColumnName("consumption_kwh_km");
+            //    entity.Property(e => e.Efficiency).HasColumnName("efficiency");
+            //});
 
             OnModelCreatingPartial(modelBuilder);
         }

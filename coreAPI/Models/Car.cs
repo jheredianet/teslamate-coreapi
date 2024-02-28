@@ -5,7 +5,7 @@
         public Car()
         {
             ChargingProcesses = new HashSet<ChargingProcess>();
-            Drives = new HashSet<Drife>();
+            Drives = new HashSet<Drive>();
             Positions = new HashSet<Position>();
             States = new HashSet<State>();
             Updates = new HashSet<Update>();
@@ -30,7 +30,7 @@
 
         public virtual CarSetting Settings { get; set; } = null!;
         public virtual ICollection<ChargingProcess> ChargingProcesses { get; set; }
-        public virtual ICollection<Drife> Drives { get; set; }
+        public virtual ICollection<Drive> Drives { get; set; }
         public virtual ICollection<Position> Positions { get; set; }
         public virtual ICollection<State> States { get; set; }
         public virtual ICollection<Update> Updates { get; set; }

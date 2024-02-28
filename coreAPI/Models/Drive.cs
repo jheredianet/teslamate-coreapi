@@ -1,8 +1,10 @@
-﻿namespace coreAPI.Models
+﻿using System.Text.Json.Serialization;
+
+namespace coreAPI.Models
 {
-    public partial class Drife
+    public partial class Drive
     {
-        public Drife()
+        public Drive()
         {
             Positions = new HashSet<Position>();
         }
@@ -31,13 +33,21 @@
         public int? StartGeofenceId { get; set; }
         public int? EndGeofenceId { get; set; }
 
+        [JsonIgnore]
         public virtual Car Car { get; set; } = null!;
+        [JsonIgnore]
         public virtual Address? EndAddress { get; set; }
+        [JsonIgnore]
         public virtual Geofence? EndGeofence { get; set; }
+        [JsonIgnore]
         public virtual Position? EndPosition { get; set; }
+        [JsonIgnore]
         public virtual Address? StartAddress { get; set; }
+        [JsonIgnore]
         public virtual Geofence? StartGeofence { get; set; }
+        [JsonIgnore]
         public virtual Position? StartPosition { get; set; }
+        [JsonIgnore]
         public virtual ICollection<Position> Positions { get; set; }
     }
 }

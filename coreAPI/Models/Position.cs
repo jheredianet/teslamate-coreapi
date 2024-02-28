@@ -5,8 +5,8 @@
         public Position()
         {
             ChargingProcesses = new HashSet<ChargingProcess>();
-            DrifeEndPositions = new HashSet<Drife>();
-            DrifeStartPositions = new HashSet<Drife>();
+            DrifeEndPositions = new HashSet<Drive>();
+            DrifeStartPositions = new HashSet<Drive>();
         }
 
         public int Id { get; set; }
@@ -41,9 +41,9 @@
         public decimal? TpmsPressureRr { get; set; }
 
         public virtual Car Car { get; set; } = null!;
-        public virtual Drife? Drive { get; set; }
+        public virtual Drive? Drive { get; set; }
         public virtual ICollection<ChargingProcess> ChargingProcesses { get; set; }
-        public virtual ICollection<Drife> DrifeEndPositions { get; set; }
-        public virtual ICollection<Drife> DrifeStartPositions { get; set; }
+        public virtual ICollection<Drive> DrifeEndPositions { get; set; }
+        public virtual ICollection<Drive> DrifeStartPositions { get; set; }
     }
 }

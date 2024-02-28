@@ -5,8 +5,8 @@
         public Geofence()
         {
             ChargingProcesses = new HashSet<ChargingProcess>();
-            DrifeEndGeofences = new HashSet<Drife>();
-            DrifeStartGeofences = new HashSet<Drife>();
+            DrifeEndGeofences = new HashSet<Drive>();
+            DrifeStartGeofences = new HashSet<Drive>();
         }
 
         public int Id { get; set; }
@@ -20,7 +20,7 @@
         public decimal? SessionFee { get; set; }
 
         public virtual ICollection<ChargingProcess> ChargingProcesses { get; set; }
-        public virtual ICollection<Drife> DrifeEndGeofences { get; set; }
-        public virtual ICollection<Drife> DrifeStartGeofences { get; set; }
+        public virtual ICollection<Drive> DrifeEndGeofences { get; set; }
+        public virtual ICollection<Drive> DrifeStartGeofences { get; set; }
     }
 }
