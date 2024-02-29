@@ -2,7 +2,9 @@
 using coreAPI.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.OpenApi.Writers;
 using System.Text;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace coreAPI.Controllers
 {
@@ -38,13 +40,30 @@ namespace coreAPI.Controllers
             return Ok(ChargesWithoutCost);
         }
 
+        //[HttpGet]
+        //[Route("GetIncompleteDrives")]
+        //public async Task<ActionResult<Drive>> GetIncompleteDrives()
+        //{
+        //    List<Drive> IncompleteDrives = await Tools.IncompleteDrives();
+        //    return Ok(IncompleteDrives);
+        //}
+        //
+        //[HttpGet]
+        //[Route("GetIncompleteCharges")]
+        //public async Task<ActionResult<ChargingProcess>> GetIncompleteCharges()
+        //{
+        //    List<ChargingProcess> IncompleteCharges = await Tools.IncompleteCharges();
+        //    return Ok(IncompleteCharges);
+        //}
+
         [HttpGet]
-        [Route("GetIncompleteDrives")]
-        public async Task<ActionResult<ChargingProcess>> GetIncompleteDrives()
+        [Route("GetIncompleteData")]
+        public async Task<ActionResult<IncompleteData>> GetIncompleteData()
         {
-            List<Drive> IncompleteDrives = await Tools.IncompleteDrives();
-            return Ok(IncompleteDrives);
+            var incompletes = await Tools.IncompleteData();
+            return Ok(incompletes);
         }
+
 
         [HttpGet]
         [Route("GetShortTimeBetweenDrives")]
@@ -144,6 +163,63 @@ namespace coreAPI.Controllers
                 if (TargetID <= SourceID) throw new Exception("TargetID must be greater than SourceID");
                 var Records = await Task.Run(() => Tools.JoinDrives(SourceID, TargetID));
                 return Ok(Records);
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+        }
+
+        [HttpPost]
+        [Route("FixData")]
+        public async Task<ActionResult<string>> FixData(int id, string typeOfRecord)
+        {
+            try
+            {
+                var command = Tools.getCommand(id, typeOfRecord);
+                var result = await Task.Run(() => Tools.runSSHCommand(command));
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+        }
+
+        [HttpPost]
+        [Route("FixAllData")]
+        public async Task<ActionResult<string>> FixAllData()
+        {
+            StringBuilder sb = new StringBuilder();
+            try
+            {
+                var incompletes = await Tools.IncompleteData();
+
+                sb.AppendLine("--- Drives ---");
+                if (incompletes is not null && incompletes.Drives is not null)
+                {
+                    foreach (var incomplete in incompletes.Drives)
+                    {
+                        var command = Tools.getCommand(incomplete.Id, "Drive");
+                        var result = await Task.Run(() => Tools.runSSHCommand(command));
+                        sb.AppendLine(result);
+                    }
+                }
+                sb.AppendLine("--- Charges ---");
+                if (incompletes is not null && incompletes.Charges is not null)
+                {
+                    foreach (var incomplete in incompletes.Charges)
+                    {
+                        var command = Tools.getCommand(incomplete.Id, "Charge");
+                        var result = await Task.Run(() => Tools.runSSHCommand(command));
+                        sb.AppendLine(result);
+                    }
+                }
+                return Ok(sb.ToString());
             }
             catch (Exception ex)
             {
@@ -269,37 +345,6 @@ namespace coreAPI.Controllers
                 };
 
                 return fileResult;
-            }
-            catch (Exception ex)
-            {
-                string msg = ex.Message;
-                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
-                return BadRequest(msg);
-            }
-        }
-
-        [HttpPost]
-        [Route("FixData")]
-        public async Task<ActionResult<string>> FixData(int id, string typeOfRecord)
-        {
-            // Validate typeOfRecord
-            if (typeOfRecord != "Drive" && typeOfRecord != "Charge")
-            {
-                return BadRequest("Invalid typeOfRecord. Allowed values are 'Drive' or 'Charge'.");
-            }
-            string command;
-            if (typeOfRecord == "Drive")
-            {
-                command = string.Format("docker exec teslamate bin/teslamate rpc \"TeslaMate.Repo.get!(TeslaMate.Log.Drive, {0}) |> TeslaMate.Log.close_drive()\"", id);
-            }
-            else
-            {
-                command = string.Format("docker exec teslamate bin/teslamate rpc \"TeslaMate.Repo.get!(TeslaMate.Log.ChargingProcess, {0}) |> TeslaMate.Log.complete_charging_process()\"", id);
-            }
-            try
-            {
-                var result = await Task.Run(() => Tools.runSSHCommand(command));
-                return Ok(result);
             }
             catch (Exception ex)
             {
