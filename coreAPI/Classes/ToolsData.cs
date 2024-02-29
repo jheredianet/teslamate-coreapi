@@ -3,13 +3,11 @@ using ExcelDataReader;
 using InfluxDB.Client;
 using InfluxDB.Client.Api.Domain;
 using InfluxDB.Client.Writes;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
 using Renci.SshNet;
 using System.Xml.Linq;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 
 namespace coreAPI.Classes
@@ -405,7 +403,7 @@ namespace coreAPI.Classes
             }
             else
             {
-                var keyFile = Path.Combine(appSettings.CurrentPath, appSettings.sshKeyFile);
+                var keyFile = appSettings.sshKeyFile;
                 if (!System.IO.File.Exists(keyFile))
                 {
                     throw new Exception(string.Format("No key file {0}, for accesing SSH server found", keyFile));
