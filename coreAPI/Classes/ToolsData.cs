@@ -85,6 +85,20 @@ namespace coreAPI.Classes
             return await db.Drives.Where(d => d.EndDate == null).OrderBy(d => d.StartDate).ToListAsync();
         }
 
+        public async Task<List<ChargingProcess>> IncompleteCharges()
+        {
+            return await db.ChargingProcesses.Where(d => d.EndDate == null).OrderBy(d => d.StartDate).ToListAsync();
+        }
+
+        public async Task<IncompleteData> IncompleteData()
+        {
+            var Incompletes = new IncompleteData();
+            Incompletes.Drives = await IncompleteDrives();
+            Incompletes.Charges = await IncompleteCharges();
+
+            return Incompletes;
+        }
+
         public async Task<int> ImportExcelFromUFD()
         {
             var Consumos = new List<ElectricConsumption>();
@@ -379,7 +393,7 @@ namespace coreAPI.Classes
             return wptData;
         }
 
-        internal ActionResult<string> runSSHCommand(string command)
+        public string runSSHCommand(string command)
         {
             string MessageReturn = string.Empty;
 
@@ -413,6 +427,25 @@ namespace coreAPI.Classes
                 }
                 return MessageReturn;
             }
+        }
+
+        public string getCommand(int id, string typeOfRecord)
+        {
+            // Validate typeOfRecord
+            if (typeOfRecord != "Drive" && typeOfRecord != "Charge")
+            {
+                throw new Exception("Invalid typeOfRecord. Allowed values are 'Drive' or 'Charge'.");
+            }
+            string command;
+            if (typeOfRecord == "Drive")
+            {
+                command = string.Format("docker exec teslamate bin/teslamate rpc \"TeslaMate.Repo.get!(TeslaMate.Log.Drive, {0}) |> TeslaMate.Log.close_drive()\"", id);
+            }
+            else
+            {
+                command = string.Format("docker exec teslamate bin/teslamate rpc \"TeslaMate.Repo.get!(TeslaMate.Log.ChargingProcess, {0}) |> TeslaMate.Log.complete_charging_process()\"", id);
+            }
+            return command;
         }
     }
 }
