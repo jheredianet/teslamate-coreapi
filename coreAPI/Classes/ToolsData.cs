@@ -266,6 +266,16 @@ namespace coreAPI.Classes
             return Task.FromResult(neighbourhood + names);
         }
 
+        public Task<int> FixOfflineStatus()
+        {
+            var senSQL = "UPDATE states SET state = 'asleep' WHERE car_id = 1 " + 
+                "AND end_date>= '20240101' AND state = 'offline' " +
+                "and DATE_PART('hour', end_date - start_date) >= 1";
+            var records = db.Database.ExecuteSqlRaw(senSQL);
+            Console.WriteLine(string.Format("Updated {0} states", records));
+            return Task.FromResult(records);
+        }
+
         public List<ChargingProcess> MixCharges(int SourceID, int TargetID)
         {
             var sourceCharging = db.ChargingProcesses.SingleOrDefault(c => c.Id == SourceID);
