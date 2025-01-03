@@ -58,7 +58,7 @@ namespace coreAPI.Classes
                     string.Format(" |> range(start: {0}, stop: {1}) ", start, end) +
                     " |> filter(fn: (r) => r._measurement == \"OpenEVSEConsumption\" and (r._field == \"Cost\" or r._field == \"Consumption\" or r._field == \"CustomCost\"))" +
                     " |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")" +
-                    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.Cost * 1.05 }))" +
+                    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.Cost }))" +
                     " |> sum()";
 
                 var fluxTables = await client.GetQueryApi().QueryAsync(flux, influxDbConnection.Organization);
