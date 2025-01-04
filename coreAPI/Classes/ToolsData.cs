@@ -54,11 +54,19 @@ namespace coreAPI.Classes
                 var start = charge.StartDate.ToString("yyyy-MM-ddTHH:mm:ssZ");
                 var end = charge.EndDate?.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
+                //var flux = string.Format("from(bucket: \"{0}\")", influxDbConnection.Bucket) +
+                //    string.Format(" |> range(start: {0}, stop: {1}) ", start, end) +
+                //    " |> filter(fn: (r) => r._measurement == \"OpenEVSEConsumption\" and (r._field == \"Cost\" or r._field == \"Consumption\" or r._field == \"CustomCost\"))" +
+                //    " |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")" +
+                //    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.Cost }))" +
+                //    " |> sum()";
+
+                // CustomCost - Octopus
                 var flux = string.Format("from(bucket: \"{0}\")", influxDbConnection.Bucket) +
                     string.Format(" |> range(start: {0}, stop: {1}) ", start, end) +
                     " |> filter(fn: (r) => r._measurement == \"OpenEVSEConsumption\" and (r._field == \"Cost\" or r._field == \"Consumption\" or r._field == \"CustomCost\"))" +
                     " |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")" +
-                    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.Cost }))" +
+                    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.CustomCost }))" +
                     " |> sum()";
 
                 var fluxTables = await client.GetQueryApi().QueryAsync(flux, influxDbConnection.Organization);
