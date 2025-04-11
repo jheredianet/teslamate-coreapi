@@ -93,12 +93,6 @@ namespace coreAPI.Controllers
             return View("Index", model);
         }
 
-        //[HttpPost]
-        //public ActionResult UpdateCheaperHours(VehicleChargingViewModel model)
-        //{
-        //    return RedirectToAction("Index");
-        //}
-
         [HttpPost]
         public ActionResult ApplyActualSchedule(VehicleChargingViewModel model)
         {

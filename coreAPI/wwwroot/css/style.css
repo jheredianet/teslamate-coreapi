@@ -93,26 +93,7 @@ body {
 
 }
 
-#notification {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    background-color: #28a745; /* Green for success */
-    color: white;
-    padding: 15px;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
-    max-width: 300px;
-    opacity: 0;
-    transition: opacity 0.5s ease-in-out;
-}
-
-#notification.error {
-    background-color: #dc3545; /* Red for error */
-}
-
-#notification.show {
-    display: block;
-    opacity: 1;
+.bg-success {
+    --bs-bg-opacity: 1;
+    background-color: #3498db !important;
 }
