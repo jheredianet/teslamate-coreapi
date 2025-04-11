@@ -99,6 +99,25 @@ namespace coreAPI.Controllers
 
         }
 
+
+        [HttpPost]
+        [Route("FixOfflineStatus")]
+        public async Task<ActionResult<int>> FixOfflineStatus()
+        {
+            try
+            {
+                var nRecords = await Task.Run(() => Tools.FixOfflineStatus());
+                return Ok(nRecords);
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+
+        }
+
         [HttpPost]
         [Route("ProcessAndFixAddresses")]
         public async Task<ActionResult<int>> ProcessAndFixAddresses()

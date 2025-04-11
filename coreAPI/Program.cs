@@ -1,14 +1,21 @@
 using coreAPI.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+var cultureInfo = new CultureInfo("es-ES");
+CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
+
+// Add services to the container.
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddControllersWithViews();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpContextAccessor();
 
 // Access to PostgreSQL 
 var ConnectionString = builder.Configuration.GetConnectionString("PostgreSqlConnection");
@@ -37,10 +44,29 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    //app.UseExceptionHandler("/Home/Error");
 }
 
-app.UseAuthorization();
+//var ContentRootPath = builder.Configuration["ContentRootPath"];
+//if (!string.IsNullOrEmpty(ContentRootPath))
+//{
+//    app.UseStaticFiles(new StaticFileOptions
+//    {
+//        // Serve files from the current directory. Necessary for the web interface to work in Docker
+//        FileProvider = new PhysicalFileProvider(ContentRootPath),
+//        RequestPath = ""
+//    });
+//}
+//else
+//{
+//    app.UseStaticFiles();
+//}
 
-app.MapControllers();
+app.UseStaticFiles();
+app.UseRouting();
+app.UseAuthorization();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();

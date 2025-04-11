@@ -54,11 +54,19 @@ namespace coreAPI.Classes
                 var start = charge.StartDate.ToString("yyyy-MM-ddTHH:mm:ssZ");
                 var end = charge.EndDate?.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
+                //var flux = string.Format("from(bucket: \"{0}\")", influxDbConnection.Bucket) +
+                //    string.Format(" |> range(start: {0}, stop: {1}) ", start, end) +
+                //    " |> filter(fn: (r) => r._measurement == \"OpenEVSEConsumption\" and (r._field == \"Cost\" or r._field == \"Consumption\" or r._field == \"CustomCost\"))" +
+                //    " |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")" +
+                //    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.Cost }))" +
+                //    " |> sum()";
+
+                // CustomCost - Octopus
                 var flux = string.Format("from(bucket: \"{0}\")", influxDbConnection.Bucket) +
                     string.Format(" |> range(start: {0}, stop: {1}) ", start, end) +
                     " |> filter(fn: (r) => r._measurement == \"OpenEVSEConsumption\" and (r._field == \"Cost\" or r._field == \"Consumption\" or r._field == \"CustomCost\"))" +
                     " |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")" +
-                    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.Cost * 1.05 }))" +
+                    " |> map(fn: (r) => ({ r with _value: r.Consumption * r.CustomCost }))" +
                     " |> sum()";
 
                 var fluxTables = await client.GetQueryApi().QueryAsync(flux, influxDbConnection.Organization);
@@ -264,6 +272,16 @@ namespace coreAPI.Classes
             Console.WriteLine(string.Format("Updated {0} addresse names", names));
 
             return Task.FromResult(neighbourhood + names);
+        }
+
+        public Task<int> FixOfflineStatus()
+        {
+            var senSQL = "UPDATE states SET state = 'asleep' WHERE car_id = 1 " + 
+                "AND end_date>= '20240101' AND state = 'offline' " +
+                "and DATE_PART('hour', end_date - start_date) >= 1";
+            var records = db.Database.ExecuteSqlRaw(senSQL);
+            Console.WriteLine(string.Format("Updated {0} states", records));
+            return Task.FromResult(records);
         }
 
         public List<ChargingProcess> MixCharges(int SourceID, int TargetID)

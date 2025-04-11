@@ -1,0 +1,141 @@
+﻿@model coreAPI.Models.VehicleChargingViewModel;
+
+@{
+    ViewBag.Title = "Charge Control";
+}
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- SECTION 1: Programming -->
+        <div class="col-xs-12 col-sm-6 col-md-4 section">
+            <h2>Programming</h2>
+            @using (Html.BeginForm("UpdateProgramming", "Home", FormMethod.Post))
+            {
+                <div class="form-group">
+                    <label>@Html.DisplayNameFor(m => m.Mode)</label><br />
+                    @Html.RadioButtonFor(m => m.Mode, "Current", new { id = "modeCurrent" }) Current
+                    @Html.RadioButtonFor(m => m.Mode, "kWh", new { id = "modeKwh" }) kWh
+                </div>
+                <div class="form-group">
+                    <label id="valueLabel">Current (A)</label>
+                    @Html.TextBoxFor(m => m.Current, new { @class = "form-control" })
+                </div>
+                <div class="form-group">
+                    <label>@Html.DisplayNameFor(m => m.SOCDesired)</label>
+                    @Html.TextBoxFor(m => m.SOCDesired, new { @class = "form-control" })
+                </div>
+                <div class="form-group">
+                    <label>@Html.DisplayNameFor(m => m.DepartureTime)</label>
+                    @Html.TextBoxFor(m => m.DepartureTime, new { @class = "form-control" })
+                </div>
+                <p>
+                    <button type="submit" class="btn btn-primary">SUBMIT</button>
+                </p>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+            }
+            <h2>PVPC</h2>
+            @using (Html.BeginForm("ChargeOnCheapeastHours", "Home", FormMethod.Post))
+            {
+                <div>
+                    <p>
+                        <button type="submit" class="btn btn-primary">Calculate on cheapeast hours</button>
+                    </p>
+                </div>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+            }
+        </div>
+        @{
+            double totalMinutes = Model.ChargingPlanTime;
+            int hours = (int)(totalMinutes / 60);
+            int minutes = (int)(totalMinutes % 60);
+            string formattedTime = $"{hours:D2}:{minutes:D2}h";
+        }
+        <!-- SECTION 2: Charging Plan -->
+        <div class="col-xs-12 col-sm-6 col-md-4 section">
+            <h2>Charging Plan</h2>
+            @using (Html.BeginForm("ApplyActualSchedule", "Home", FormMethod.Post))
+            {
+                <div class="readonly-container" style="display: grid; grid-template-columns: auto auto; gap: 10px;">
+                    <div><strong>Start:</strong></div> <div>@Model.ChargingPlanStart.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                    <div><strong>End:</strong></div> <div>@Model.ChargingPlanEnd.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                    <div><strong>Time:</strong></div> <div>@formattedTime</div>
+                    <div><strong>From:</strong></div> <div>@Model.FromPercentage %</div>
+                    <div><strong>To:</strong></div> <div>@Model.ToPercentage %</div>
+                    <div><strong>To Add:</strong></div> <div>@Model.ToAddPercentage %</div>
+                    <div><strong>Add:</strong></div> <div>@Model.Add.ToString("F2") kWh</div>
+                    <div><strong>Used:</strong></div> <div>@Model.Used.ToString("F2") kWh</div>
+                    <div><strong>Output:</strong></div> <div>@Model.Output.ToString("F2") kWh</div>
+                    <div><strong>Intake:</strong></div> <div>@Model.Intake.ToString("F2") kWh</div>
+                    <div><strong>Charge:</strong></div> <div>@Model.Charge.ToString("F2") km/h</div>
+                    <div><strong>Range Added:</strong></div> <div>@Model.RangeAdded.ToString("F2") km</div>
+                    <div><strong>Battery Capacity:</strong></div> <div>@Model.BatteryCapacity.ToString("F2") kWh</div>
+                </div>
+                <button type="submit" class="btn btn-primary">APPLY</button>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+            }
+        </div>
+
+        <!-- SECTION 3: Actual Schedule -->
+        <div class="col-xs-12 col-sm-6 col-md-4 section">
+            <h2>Actual Schedule</h2>
+            <div class="readonly-container" style="display: grid; grid-template-columns: auto auto; gap: 10px;">
+                <div><strong>Start:</strong></div> <div>@Model.ActualStart.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                <div><strong>End:</strong></div> <div>@Model.ActualEnd.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                <div><strong>Time:</strong></div> <div>@Model.ActualTime</div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script type="text/javascript">
+          $(document).ready(function () {
+              // Handle input change for Mode
+              $('input[name="Mode"]').change(function () {
+                  if ($(this).val() === "Current") {
+                      $("#valueLabel").text("Current (A)");
+                  } else if ($(this).val() === "kWh") {
+                      $("#valueLabel").text("Energy (kWh)");
+                  }
+              });
+
+              // Handle modal display
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <text>showModal("@TempData["SuccessMessage"]", "success");</text>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <text>showModal("@TempData["ErrorMessage"]", "error");</text>
+        }
+
+          // Function to show modal message
+          function showModal(message, type) {
+            const modalHtml = `
+                <div id="customModal" class="modal fade" tabindex="-1" role="dialog">
+                    <div class="modal-dialog" role="document">
+                        <div class="modal-content bg-dark text-white">
+                            <div class="modal-header ${type === "success" ? "bg-success" : "bg-danger"} text-white">
+                                <h5 class="modal-title">${type === "success" ? "Success" : "Error"}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>${message}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+              $("body").append(modalHtml);
+              const modal = new bootstrap.Modal(document.getElementById('customModal'));
+              modal.show();
+
+              // Auto-hide modal after 5 seconds
+              setTimeout(function () {
+                  modal.hide();
+                  $("#customModal").remove();
+              }, 1500);
+          }
+        });
+    </script>
+}
