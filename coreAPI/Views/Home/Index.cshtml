@@ -1,145 +1,141 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
-}
-@model coreAPI.Models.OutChargeProgramming;
+﻿@model coreAPI.Models.VehicleChargingViewModel;
 
 @{
-    // Default Form Values
-    int Current = 19;
-    int TargetSOC = 60;
-    string DepartureTime = "08:00";
-    if (Model != null) // isPost
-    {
-        Current = Model.Current;
-        TargetSOC = Model.TargetSOC;
-        DepartureTime = Model.DepartureTime;
-    }
+    ViewBag.Title = "Charge Control";
 }
 
-<div class="text-center">
-    <h2 class="display-4">Car Charge Control</h2>
-    <form method="post" asp-controller="Home" asp-action="Index">
-        <div class="divTable">
-            <div class="divTableBody">
-                <div class="divTableRow">
-                    <div class="divTableCell" style="text-align:right"><label for="Current">Current:</label></div>
-                    <div class="divTableCell" style="text-align:left"><input type="number" id="Current" name="Current" asp-for="Current" value="@Current" /></div>
+<div class="container-fluid">
+    <div class="row">
+        <!-- SECTION 1: Programming -->
+        <div class="col-xs-12 col-sm-6 col-md-4 section">
+            <h2>Programming</h2>
+            @using (Html.BeginForm("UpdateProgramming", "Home", FormMethod.Post))
+            {
+                <div class="form-group">
+                    <label>@Html.DisplayNameFor(m => m.Mode)</label><br />
+                    @Html.RadioButtonFor(m => m.Mode, "Current", new { id = "modeCurrent" }) Current
+                    @Html.RadioButtonFor(m => m.Mode, "kWh", new { id = "modeKwh" }) kWh
                 </div>
-                <div class="divTableRow">
-                    <div class="divTableCell" style="text-align:right"><label for="TargetSOC">SOC:</label></div>
-                    <div class="divTableCell" style="text-align:left"><input type="number" id="TargetSOC" name="TargetSOC" asp-for="TargetSOC" value="@TargetSOC" /></div>
+                <div class="form-group">
+                    <label id="valueLabel">Current (A)</label>
+                    @Html.TextBoxFor(m => m.Current, new { @class = "form-control" })
                 </div>
-                <div class="divTableRow">
-                    <div class="divTableCell" style="text-align:right"><label for="DepartureTime">Departure time:</label></div>
-                    <div class="divTableCell" style="text-align:left"><input type="time" id="DepartureTime" name="DepartureTime" asp-for="DepartureTime" value="@DepartureTime" /></div>
+                <div class="form-group">
+                    <label>@Html.DisplayNameFor(m => m.SOCDesired)</label>
+                    @Html.TextBoxFor(m => m.SOCDesired, new { @class = "form-control" })
                 </div>
-                <div class="divTableRow">
-                    <div class="divTableCell">&nbsp;</div>
-                    <div class="divTableCell" style="text-align:left">
-                        <button type="submit" class="btn btn-primary">Submit</button>
-                        <button type="reset" class="btn btn-secondary">Cancel</button>
-                    </div>
+                <div class="form-group">
+                    <label>@Html.DisplayNameFor(m => m.DepartureTime)</label>
+                    @Html.TextBoxFor(m => m.DepartureTime, new { @class = "form-control" })
                 </div>
+                <p>
+                    <button type="submit" class="btn btn-primary">SUBMIT</button>
+                </p>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+            }
+            <h2>PVPC</h2>
+            @using (Html.BeginForm("ChargeOnCheapeastHours", "Home", FormMethod.Post))
+            {
+                <div>
+                    <p>
+                        <button type="submit" class="btn btn-primary">Calculate on cheapeast hours</button>
+                    </p>
+                </div>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+            }
+        </div>
+        @{
+            double totalMinutes = Model.ChargingPlanTime;
+            int hours = (int)(totalMinutes / 60);
+            int minutes = (int)(totalMinutes % 60);
+            string formattedTime = $"{hours:D2}:{minutes:D2}h";
+        }
+        <!-- SECTION 2: Charging Plan -->
+        <div class="col-xs-12 col-sm-6 col-md-4 section">
+            <h2>Charging Plan</h2>
+            @using (Html.BeginForm("ApplyActualSchedule", "Home", FormMethod.Post))
+            {
+                <div class="readonly-container" style="display: grid; grid-template-columns: auto auto; gap: 10px;">
+                    <div><strong>Start:</strong></div> <div>@Model.ChargingPlanStart.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                    <div><strong>End:</strong></div> <div>@Model.ChargingPlanEnd.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                    <div><strong>Time:</strong></div> <div>@formattedTime</div>
+                    <div><strong>From:</strong></div> <div>@Model.FromPercentage %</div>
+                    <div><strong>To:</strong></div> <div>@Model.ToPercentage %</div>
+                    <div><strong>To Add:</strong></div> <div>@Model.ToAddPercentage %</div>
+                    <div><strong>Add:</strong></div> <div>@Model.Add.ToString("F2") kWh</div>
+                    <div><strong>Used:</strong></div> <div>@Model.Used.ToString("F2") kWh</div>
+                    <div><strong>Output:</strong></div> <div>@Model.Output.ToString("F2") kWh</div>
+                    <div><strong>Intake:</strong></div> <div>@Model.Intake.ToString("F2") kWh</div>
+                    <div><strong>Charge:</strong></div> <div>@Model.Charge.ToString("F2") km/h</div>
+                    <div><strong>Range Added:</strong></div> <div>@Model.RangeAdded.ToString("F2") km</div>
+                    <div><strong>Battery Capacity:</strong></div> <div>@Model.BatteryCapacity.ToString("F2") kWh</div>
+                </div>
+                <button type="submit" class="btn btn-primary">APPLY</button>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
+            }
+        </div>
+
+        <!-- SECTION 3: Actual Schedule -->
+        <div class="col-xs-12 col-sm-6 col-md-4 section">
+            <h2>Actual Schedule</h2>
+            <div class="readonly-container" style="display: grid; grid-template-columns: auto auto; gap: 10px;">
+                <div><strong>Start:</strong></div> <div>@Model.ActualStart.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                <div><strong>End:</strong></div> <div>@Model.ActualEnd.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                <div><strong>Time:</strong></div> <div>@Model.ActualTime</div>
+
             </div>
         </div>
-    </form>
-</div>
-<p><br /></p>
-@if (Model != null) // isPost - Charging Plan Table
-{
-    double totalMinutes = Model.Time;
-    int hours = (int)(totalMinutes / 60);
-    int minutes = (int)(totalMinutes % 60);
-    string formattedTime = $"{hours:D2}:{minutes:D2}h";
-
-    <div class="text-center">
-        <h2 class="display-4">Charging Plan</h2>
-        <form method="post">
-            <div class="divTable">
-                <div class="divTableBody">
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Start</div>
-                        <div class="divTableCell" style="text-align:left">@Model.Start.ToLocalTime()</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">End</div>
-                        <div class="divTableCell" style="text-align:left">@Model.End.ToLocalTime()</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Duration</div>
-                        <div class="divTableCell" style="text-align:left">@formattedTime</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">From</div>
-                        <div class="divTableCell" style="text-align:left">@Model.From%</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">To</div>
-                        <div class="divTableCell" style="text-align:left">@Model.To%</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">To Add</div>
-                        <div class="divTableCell" style="text-align:left">@Model.ToAdd%</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Added</div>
-                        <div class="divTableCell" style="text-align:left">@Model.Added.ToString("F2") kWh</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Used</div>
-                        <div class="divTableCell" style="text-align:left">@Model.Used.ToString("F2") kWh</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Output</div>
-                        <div class="divTableCell" style="text-align:left">@Model.Output.ToString("F2") kW</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Intake</div>
-                        <div class="divTableCell" style="text-align:left">@Model.Intake.ToString("F2") kw</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Charge</div>
-                        <div class="divTableCell" style="text-align:left">@Model.Charge.ToString("F2") Km/h</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Range Added</div>
-                        <div class="divTableCell" style="text-align:left">@Model.RangeAdded.ToString("F2") km</div>
-                    </div>
-                    <div class="divTableRow">
-                        <div class="divTableCell" style="text-align:right">Battery Capacity</div>
-                        <div class="divTableCell" style="text-align:left">@Model.BatteryCapacity.ToString("F2") kWh</div>
-                    </div>
-                </div>
-            </div>
-        </form>
     </div>
-}
-
-<!-- IPv6-test.com widget BEGIN -->
-<script type="text/javascript">
-    var _ipv6test_widget_style = {
-        border: "solid 1px #000",
-        font_size: "12px",
-        show_country_flags: true,
-        show_loading_anim: true,
-        ipv4_label_color: "#393",
-        ipv4_background_color: "#eee",
-        ipv6_label_color: "#339",
-        ipv6_background_color: "#ddd",
-        stats_position: "top",
-        stats_font_size: "10px",
-        stats_color: "#eee",
-        stats_color_v4: "#beb",
-        stats_color_v6: "#bbe",
-        stats_background_color: "#666"
-    }</script>
-
-<hr />
-<div style="width: 300px; margin-left: auto;margin-right: auto;">
-    <div id="_ipv6test_widget" style="width:250px;display:none">loading <a href="http://ipv6-test.com/">IPv6 connection test</a> ...</div>
 </div>
-<script type="text/javascript" src="http://ipv6-test.com/api/widget.php?domain=referer" async="async"></script>
-<!-- IPv6-test.com widget END -->
 
-<script type="text/javascript" src="http://ipv6-test.com/api/widget.php?domain=referer" async="async"></script>
-<!-- IPv6-test.com widget END -->
+@section Scripts {
+    <script type="text/javascript">
+          $(document).ready(function () {
+              // Handle input change for Mode
+              $('input[name="Mode"]').change(function () {
+                  if ($(this).val() === "Current") {
+                      $("#valueLabel").text("Current (A)");
+                  } else if ($(this).val() === "kWh") {
+                      $("#valueLabel").text("Energy (kWh)");
+                  }
+              });
+
+              // Handle modal display
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <text>showModal("@TempData["SuccessMessage"]", "success");</text>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <text>showModal("@TempData["ErrorMessage"]", "error");</text>
+        }
+
+          // Function to show modal message
+          function showModal(message, type) {
+            const modalHtml = `
+                <div id="customModal" class="modal fade" tabindex="-1" role="dialog">
+                    <div class="modal-dialog" role="document">
+                        <div class="modal-content bg-dark text-white">
+                            <div class="modal-header ${type === "success" ? "bg-success" : "bg-danger"} text-white">
+                                <h5 class="modal-title">${type === "success" ? "Success" : "Error"}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>${message}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+              $("body").append(modalHtml);
+              const modal = new bootstrap.Modal(document.getElementById('customModal'));
+              modal.show();
+
+              // Auto-hide modal after 5 seconds
+              setTimeout(function () {
+                  modal.hide();
+                  $("#customModal").remove();
+              }, 1500);
+          }
+        });
+    </script>
+}
