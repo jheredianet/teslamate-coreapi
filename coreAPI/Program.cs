@@ -1,7 +1,14 @@
 using coreAPI.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+
 
 var builder = WebApplication.CreateBuilder(args);
+
+var cultureInfo = new CultureInfo("es-ES");
+CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
+
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -39,6 +46,21 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
     //app.UseExceptionHandler("/Home/Error");
 }
+
+//var ContentRootPath = builder.Configuration["ContentRootPath"];
+//if (!string.IsNullOrEmpty(ContentRootPath))
+//{
+//    app.UseStaticFiles(new StaticFileOptions
+//    {
+//        // Serve files from the current directory. Necessary for the web interface to work in Docker
+//        FileProvider = new PhysicalFileProvider(ContentRootPath),
+//        RequestPath = ""
+//    });
+//}
+//else
+//{
+//    app.UseStaticFiles();
+//}
 
 app.UseStaticFiles();
 app.UseRouting();
