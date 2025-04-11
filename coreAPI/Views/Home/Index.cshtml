@@ -31,6 +31,7 @@
                 <p>
                     <button type="submit" class="btn btn-primary">SUBMIT</button>
                 </p>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
             }
             <h2>PVPC</h2>
             @using (Html.BeginForm("ChargeOnCheapeastHours", "Home", FormMethod.Post))
@@ -39,33 +40,17 @@
                     <p>
                         <button type="submit" class="btn btn-primary">Calculate on cheapeast hours</button>
                     </p>
-                    @Html.ValidationSummary(false, "", new { @class = "text-danger" })
                 </div>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
             }
         </div>
-
-        @* <!-- SECTION 2: Charge on Cheaper Hours -->
-        <div class="col-xs-12 col-sm-6 col-md-3 section">
-            <h2>Charge on Cheaper Hours</h2>
-            @using (Html.BeginForm("UpdateCheaperHours", "Home", FormMethod.Post))
-            {
-                <div class="checkbox">
-                    <label>
-                        @Html.CheckBoxFor(m => m.ChargeOnCheaperHours) Charge on Cheap Hours?
-                    </label>
-                </div>
-                <button type="submit" class="btn btn-primary">SUBMIT</button>
-                <button type="reset" class="btn btn-default">CANCEL</button>
-            }
-        </div>  *@
-
         @{
             double totalMinutes = Model.ChargingPlanTime;
             int hours = (int)(totalMinutes / 60);
             int minutes = (int)(totalMinutes % 60);
             string formattedTime = $"{hours:D2}:{minutes:D2}h";
         }
-        <!-- SECTION 3: Charging Plan -->
+        <!-- SECTION 2: Charging Plan -->
         <div class="col-xs-12 col-sm-6 col-md-4 section">
             <h2>Charging Plan</h2>
             @using (Html.BeginForm("ApplyActualSchedule", "Home", FormMethod.Post))
@@ -86,10 +71,11 @@
                     <div><strong>Battery Capacity:</strong></div> <div>@Model.BatteryCapacity.ToString("F2") kWh</div>
                 </div>
                 <button type="submit" class="btn btn-primary">APPLY</button>
+                @Html.ValidationSummary(false, "", new { @class = "text-danger" })
             }
         </div>
 
-        <!-- SECTION 4: Actual Schedule -->
+        <!-- SECTION 3: Actual Schedule -->
         <div class="col-xs-12 col-sm-6 col-md-4 section">
             <h2>Actual Schedule</h2>
             <div class="readonly-container" style="display: grid; grid-template-columns: auto auto; gap: 10px;">
@@ -100,35 +86,56 @@
             </div>
         </div>
     </div>
-
-    <!-- Custom Notification Div -->
-    <div id="notification" style="display: none;">
-        <h5 id="notification-title"></h5>
-        <p id="notification-message"></p>
-    </div>
-
 </div>
 
 @section Scripts {
     <script type="text/javascript">
-        $(document).ready(function () {
-            // Handle input change for Mode
-            $('input[name="Mode"]').change(function () {
-                if ($(this).val() === "Current") {
-                    $("#valueLabel").text("Current (A)");
-                } else if ($(this).val() === "kWh") {
-                    $("#valueLabel").text("Energy (kWh)");
-                }
-            });
-            // Handle modal display
-            @if (TempData["SuccessMessage"] != null)
-            {
-                <text>alert("@TempData["SuccessMessage"]");</text>
-            }   
-            @if (TempData["ErrorMessage"] != null)
-            {
-                <text>alert("@TempData["ErrorMessage"]");</text>
-            }
+          $(document).ready(function () {
+              // Handle input change for Mode
+              $('input[name="Mode"]').change(function () {
+                  if ($(this).val() === "Current") {
+                      $("#valueLabel").text("Current (A)");
+                  } else if ($(this).val() === "kWh") {
+                      $("#valueLabel").text("Energy (kWh)");
+                  }
+              });
+
+              // Handle modal display
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <text>showModal("@TempData["SuccessMessage"]", "success");</text>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <text>showModal("@TempData["ErrorMessage"]", "error");</text>
+        }
+
+          // Function to show modal message
+          function showModal(message, type) {
+            const modalHtml = `
+                <div id="customModal" class="modal fade" tabindex="-1" role="dialog">
+                    <div class="modal-dialog" role="document">
+                        <div class="modal-content bg-dark text-white">
+                            <div class="modal-header ${type === "success" ? "bg-success" : "bg-danger"} text-white">
+                                <h5 class="modal-title">${type === "success" ? "Success" : "Error"}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>${message}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+              $("body").append(modalHtml);
+              const modal = new bootstrap.Modal(document.getElementById('customModal'));
+              modal.show();
+
+              // Auto-hide modal after 5 seconds
+              setTimeout(function () {
+                  modal.hide();
+                  $("#customModal").remove();
+              }, 2000);
+          }
         });
     </script>
 }

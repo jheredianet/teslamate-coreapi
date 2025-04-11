@@ -59,11 +59,13 @@ namespace coreAPI.Controllers
             if (DataPlan != null)
             {
                 model = AssignValuesFromOutChargeProgrammingToViewModel(model, DataPlan);
+                TempData["SuccessMessage"] = "Charging plan calculated successfully!"; // Set success message
             }
             else
             {
                 // Handle the case where DataPlan is null (e.g., log an error, return an error view, etc.)
                 ModelState.AddModelError(string.Empty, "Failed to retrieve charging plan.");
+                TempData["ErrorMessage"] = "Failed to calculate charging plan."; // Set error message
             }
 
             return View("Index", model);
@@ -85,7 +87,7 @@ namespace coreAPI.Controllers
             {
                 // Handle the case where DataPlan is null (e.g., log an error, return an error view, etc.)
                 ModelState.AddModelError(string.Empty, "Failed to retrieve charging plan.");
-                TempData["ErrorMessage"] = "Failed to retrieve charging plan."; // Set error message
+                TempData["ErrorMessage"] = "Failed to calculate charging plan."; // Set error message
             }
 
             return View("Index", model);
@@ -107,11 +109,13 @@ namespace coreAPI.Controllers
             if (DataPlan != null)
             {
                 model = AssignValuesFromOutChargeProgrammingToViewModel(model, DataPlan);
+                TempData["SuccessMessage"] = "Charging plan Applied successfully!"; // Set success message
             }
             else
             {
                 // Handle the case where DataPlan is null (e.g., log an error, return an error view, etc.)
                 ModelState.AddModelError(string.Empty, "Failed to retrieve charging plan.");
+                TempData["ErrorMessage"] = "Failed to Apply charging plan."; // Set error message
             }
             return View("Index", model);
         }
