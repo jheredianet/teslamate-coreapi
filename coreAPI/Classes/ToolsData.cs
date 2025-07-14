@@ -147,7 +147,7 @@ namespace coreAPI.Classes
 
                                 c.FechaHora = Convert.ToDateTime(string.Format("{0}-{1}-{2} {3}", dateGroups[2], dateGroups[1], dateGroups[0], timeFormat));
                                 c.Consumo = Convert.ToDouble((reader.GetValue(3).ToString() ?? "").Replace(',', '.'));
-                                c.RealLecture = (reader.GetValue(4).ToString() ?? "") == "Real";
+                                c.RealLecture = (reader.GetValue(7).ToString() ?? "") == "Real";
                                 Consumos.Add(c);
                             }
                         } while (reader.NextResult()); //Move to NEXT SHEET
