@@ -40,21 +40,21 @@ namespace coreAPI.Controllers
             return Ok(ChargesWithoutCost);
         }
 
-        //[HttpGet]
-        //[Route("GetIncompleteDrives")]
-        //public async Task<ActionResult<Drive>> GetIncompleteDrives()
-        //{
-        //    List<Drive> IncompleteDrives = await Tools.IncompleteDrives();
-        //    return Ok(IncompleteDrives);
-        //}
-        //
-        //[HttpGet]
-        //[Route("GetIncompleteCharges")]
-        //public async Task<ActionResult<ChargingProcess>> GetIncompleteCharges()
-        //{
-        //    List<ChargingProcess> IncompleteCharges = await Tools.IncompleteCharges();
-        //    return Ok(IncompleteCharges);
-        //}
+        [HttpGet]
+        [Route("GetAddresses")]
+        public async Task<ActionResult<Address>> GetAddresses(string IncludedName)
+        {
+            List<Address> SearchedAddresses = await Tools.SearchAddress(IncludedName);
+            return Ok(SearchedAddresses);
+        }
+
+        [HttpGet]
+        [Route("GetIncompleteCharges")]
+        public async Task<ActionResult<ChargingProcess>> GetIncompleteCharges()
+        {
+            List<ChargingProcess> IncompleteCharges = await Tools.IncompleteCharges();
+            return Ok(IncompleteCharges);
+        }
 
         [HttpGet]
         [Route("GetIncompleteData")]
@@ -99,6 +99,24 @@ namespace coreAPI.Controllers
 
         }
 
+
+        [HttpPost]
+        [Route("RenameAddressName")]
+        public async Task<ActionResult<int>> RenameAddressName(int id, string NewName)
+        {
+            try
+            {
+                var nRecords = await Task.Run(() => Tools.RenameAddressName(id, NewName));
+                return Ok(nRecords);
+            }
+            catch (Exception ex)
+            {
+                string msg = ex.Message;
+                if (ex.InnerException != null) msg += string.Format(" - {0}", ex.InnerException.Message);
+                return BadRequest(msg);
+            }
+
+        }
 
         [HttpPost]
         [Route("FixOfflineStatus")]

@@ -96,6 +96,20 @@ namespace coreAPI.Classes
             return await db.ChargingProcesses.Where(d => d.EndDate == null).OrderBy(d => d.StartDate).ToListAsync();
         }
 
+        public async Task<List<Address>> SearchAddress(string IncludedName)
+        {
+            if (string.IsNullOrEmpty(IncludedName))
+            {
+                throw new ArgumentException("IncludedName cannot be null or empty.", nameof(IncludedName));
+            }
+
+            var Addresses = await db.Addresses
+                .Where(a => a.Name != null && a.Name.ToLower().Contains(IncludedName.ToLower()))
+                .ToListAsync();
+
+            return Addresses;
+        }
+
         public async Task<IncompleteData> IncompleteData()
         {
             var Incompletes = new IncompleteData();
@@ -133,7 +147,15 @@ namespace coreAPI.Classes
 
                                 c.FechaHora = Convert.ToDateTime(string.Format("{0}-{1}-{2} {3}", dateGroups[2], dateGroups[1], dateGroups[0], timeFormat));
                                 c.Consumo = Convert.ToDouble((reader.GetValue(3).ToString() ?? "").Replace(',', '.'));
-                                c.RealLecture = (reader.GetValue(4).ToString() ?? "") == "Real";
+
+                                if (double.TryParse((reader.GetValue(4)?.ToString() ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p1))
+                                    c.P1 = p1;
+                                if (double.TryParse((reader.GetValue(5)?.ToString() ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p2))
+                                    c.P2 = p2;
+                                if (double.TryParse((reader.GetValue(6)?.ToString() ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p3))
+                                    c.P3 = p3;
+
+                                c.RealLecture = (reader.GetValue(7).ToString() ?? "") == "Real";
                                 Consumos.Add(c);
                             }
                         } while (reader.NextResult()); //Move to NEXT SHEET
@@ -276,11 +298,19 @@ namespace coreAPI.Classes
 
         public Task<int> FixOfflineStatus()
         {
-            var senSQL = "UPDATE states SET state = 'asleep' WHERE car_id = 1 " + 
+            var senSQL = "UPDATE states SET state = 'asleep' WHERE car_id = 1 " +
                 "AND end_date>= '20240101' AND state = 'offline' " +
                 "and DATE_PART('hour', end_date - start_date) >= 1";
             var records = db.Database.ExecuteSqlRaw(senSQL);
             Console.WriteLine(string.Format("Updated {0} states", records));
+            return Task.FromResult(records);
+        }
+
+        public Task<int> RenameAddressName(int id, string NewName)
+        {
+            var senSQL = string.Format("UPDATE addresses SET name = '{0}' WHERE id = {1}", NewName, id);
+            var records = db.Database.ExecuteSqlRaw(senSQL);
+            Console.WriteLine(string.Format("Updated {0} Addresses", records));
             return Task.FromResult(records);
         }
 
