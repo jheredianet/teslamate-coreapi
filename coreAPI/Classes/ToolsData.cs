@@ -147,6 +147,14 @@ namespace coreAPI.Classes
 
                                 c.FechaHora = Convert.ToDateTime(string.Format("{0}-{1}-{2} {3}", dateGroups[2], dateGroups[1], dateGroups[0], timeFormat));
                                 c.Consumo = Convert.ToDouble((reader.GetValue(3).ToString() ?? "").Replace(',', '.'));
+
+                                if (double.TryParse((reader.GetValue(4)?.ToString() ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p1))
+                                    c.P1 = p1;
+                                if (double.TryParse((reader.GetValue(5)?.ToString() ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p2))
+                                    c.P2 = p2;
+                                if (double.TryParse((reader.GetValue(6)?.ToString() ?? "").Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p3))
+                                    c.P3 = p3;
+
                                 c.RealLecture = (reader.GetValue(7).ToString() ?? "") == "Real";
                                 Consumos.Add(c);
                             }
