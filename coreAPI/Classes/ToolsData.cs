@@ -171,6 +171,9 @@ namespace coreAPI.Classes
                         var point = PointData.Measurement("ElectricConsumption")
                         .Tag("location", "Home")
                         .Field("consumption", c.Consumo)
+                        .Field("P1", c.P1)
+                        .Field("P2", c.P2)
+                        .Field("P3", c.P3)
                         .Field("reallecture", c.RealLecture ? 1 : 0)
                         .Timestamp(c.FechaHora, WritePrecision.Ms);
 
