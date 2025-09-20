@@ -1,3 +1,4 @@
+using coreAPI.Classes;
 using coreAPI.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -37,6 +38,8 @@ if (Settings != null)
     builder.Services.AddTransient<AppSettings>(provider => new AppSettings(Settings));
 }
 
+builder.Services.AddSingleton<M3UService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -64,9 +67,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
+app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapControllerRoute(
+    name: "m3u_shortcut",
+    pattern: "m3u/{action=Index}/{id?}",
+    defaults: new { controller = "M3U" });
 
 app.Run();

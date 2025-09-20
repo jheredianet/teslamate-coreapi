@@ -1,0 +1,15 @@
+﻿@{
+    ViewData["Title"] = "Importar desde HTML";
+}
+
+<h2>Importar desde HTML</h2>
+
+<form asp-action="Import" method="post">
+    @Html.AntiForgeryToken()
+    <div class="mb-3">
+        <label for="htmlContent" class="form-label">Pega aquí el HTML</label>
+        <textarea id="htmlContent" name="htmlContent" class="form-control" rows="15"></textarea>
+    </div>
+    <button type="submit" class="btn btn-success">Importar</button>
+    <a href="@Url.Action("Index")" class="btn btn-secondary">Cancelar</a>
+</form>

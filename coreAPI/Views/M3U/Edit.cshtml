@@ -1,0 +1,40 @@
+﻿@model coreAPI.Models.M3UEntry
+@{
+    ViewData["Title"] = (Model.Id == 0 ? "Crear" : "Editar") + " entrada M3U";
+}
+<h2>@ViewData["Title"]</h2>
+
+<form asp-action="@(Model.Id == 0 ? "Create" : "Edit")" method="post">
+    @Html.AntiForgeryToken()
+    @if (Model.Id != 0)
+    {
+        <input type="hidden" asp-for="Id" />
+    }
+    <div class="mb-3">
+        <label class="form-label">Grupo</label>
+        <input class="form-control" asp-for="GroupTitle" />
+        <span class="text-danger" asp-validation-for="GroupTitle"></span>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Logo (URL)</label>
+        <input class="form-control" asp-for="TVGLogo" />
+        <span class="text-danger" asp-validation-for="TVGLogo"></span>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Nombre del canal</label>
+        <input class="form-control" asp-for="ChannelName" />
+        <span class="text-danger" asp-validation-for="ChannelName"></span>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Stream URL</label>
+        <input class="form-control" asp-for="StreamUrl" />
+        <small class="form-text text-muted">Ej: acestream://... o http(s)://...</small>
+        <span class="text-danger" asp-validation-for="StreamUrl"></span>
+    </div>
+    <button class="btn btn-success" type="submit">Guardar</button>
+    <a class="btn btn-secondary" href="@Url.Action("Index")">Cancelar</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
