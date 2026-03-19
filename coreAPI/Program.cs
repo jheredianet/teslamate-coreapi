@@ -38,6 +38,7 @@ if (Settings != null)
     builder.Services.AddTransient<AppSettings>(provider => new AppSettings(Settings));
 }
 
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<M3UService>();
 
 var app = builder.Build();

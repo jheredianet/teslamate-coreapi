@@ -1,16 +1,51 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using coreAPI.Classes;
 using coreAPI.Models;
+using System.Text;
+using System.Text.Json;
 
 namespace coreAPI.Controllers
 {
     public class M3UController : Controller
     {
         private readonly M3UService _service;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IWebHostEnvironment _env;
+        private Dictionary<string, string> _serverMappings;
+        private readonly string _userIdPath;
 
-        public M3UController(M3UService service)
+        private const string MonitoringServerUrl = "https://jchmip.infoinnova.net:444";
+
+        public M3UController(M3UService service, IHttpClientFactory httpClientFactory, IWebHostEnvironment env)
         {
             _service = service;
+            _httpClientFactory = httpClientFactory;
+            _env = env;
+            _userIdPath = Path.Combine(env.ContentRootPath, "import", "userid.json");
+            _serverMappings = LoadServerMappings();
+        }
+
+        private Dictionary<string, string> LoadServerMappings()
+        {
+            if (!System.IO.File.Exists(_userIdPath))
+            {
+                return new Dictionary<string, string>();
+            }
+
+            try
+            {
+                var json = System.IO.File.ReadAllText(_userIdPath, Encoding.UTF8);
+                return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
+            }
+            catch
+            {
+                return new Dictionary<string, string>();
+            }
+        }
+
+        public void ReloadServerMappings()
+        {
+            _serverMappings = LoadServerMappings();
         }
 
         public IActionResult Index(string? q, string? group)
@@ -208,6 +243,87 @@ namespace coreAPI.Controllers
             }
 
             return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>
+        /// Endpoint que devuelve un fichero M3U dinámico procesado según el id proporcionado.
+        /// Replica la funcionalidad del script PHP original.
+        /// </summary>
+        /// <param name="id">Identificador del servidor de destino (rahm, lahm, nextpvr, mery, jchm, home, cifu)</param>
+        /// <returns>Contenido M3U con content-type audio/x-mpegurl</returns>
+        [HttpGet("stream")]
+        public async Task<IActionResult> Stream(string? id)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !_serverMappings.TryGetValue(id, out var userIp))
+            {
+                return BadRequest("Parámetro 'id' requerido. Valores válidos: " + string.Join(", ", _serverMappings.Keys));
+            }
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+
+                // 1. Leer fichero local custom_ace.txt
+                var customAcePath = Path.Combine(_env.ContentRootPath, "import", "lista.m3u");
+                var customUrls = string.Empty;
+                if (System.IO.File.Exists(customAcePath))
+                {
+                    customUrls = await System.IO.File.ReadAllTextAsync(customAcePath, Encoding.UTF8);
+                }
+
+                // 2. Obtener búsqueda del servidor de monitorización
+                var searchQuery = "liga%20OR%20campeones%20OR%20dazn%20OR%20madrid%20OR%20copa%20OR%20vamos%20OR%20deportes%20OR%20nba%20OR%20espn%20OR%20eurosport%20OR%20Movistar";
+                var searchUrl = $"{MonitoringServerUrl}/search.m3u?query={searchQuery}";
+
+                var searchString = await client.GetStringAsync(searchUrl);
+
+                // 3. Eliminar #EXTM3U extra del contenido remoto
+                searchString = searchString.Replace("#EXTM3U", "", StringComparison.OrdinalIgnoreCase);
+
+                // 4. Concatenar contenidos (customUrls + searchString)
+                var vdata = customUrls + searchString;
+
+                // 5. Reemplazar acestream:// por URL del usuario
+                vdata = vdata.Replace("acestream://", $"{userIp}/ace/getstream?id=");
+
+                // 6. Reemplazar URL del servidor de monitorización por userIp
+                vdata = vdata.Replace(MonitoringServerUrl, userIp);
+
+                // 7. Eliminar canales ELCANO (case insensitive) y la línea siguiente
+                var lines = vdata.Split('\n');
+                var filteredLines = new List<string>();
+                var skipNext = false;
+
+                foreach (var line in lines)
+                {
+                    if (skipNext)
+                    {
+                        skipNext = false;
+                        continue;
+                    }
+
+                    if (line.Contains("ELCANO", StringComparison.OrdinalIgnoreCase))
+                    {
+                        skipNext = true;
+                        continue;
+                    }
+
+                    filteredLines.Add(line);
+                }
+
+                vdata = string.Join('\n', filteredLines);
+
+                // 8. Devolver con content-type M3U
+                return Content(vdata, "audio/x-mpegurl", Encoding.UTF8);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(502, $"Error al conectar con el servidor de monitorización: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Error interno: {ex.Message}");
+            }
         }
 
     }
