@@ -32,11 +32,22 @@ builder.Services.AddTransient(provider =>
     );
 
 // Access to AppSettings
-var Settings = builder.Configuration.GetSection("Settings").Get<AppSettings>();
-if (Settings != null)
+var settings = builder.Configuration.GetSection("Settings").Get<AppSettings>() ?? new AppSettings();
+settings.CurrentPath = builder.Environment.ContentRootPath;
+
+// ImportPath puede ser absoluto en producción (/app/import) o relativo en desarrollo (import).
+settings.ImportPath = string.IsNullOrWhiteSpace(settings.ImportPath)
+    ? Path.Combine(builder.Environment.ContentRootPath, "import")
+    : Path.IsPathRooted(settings.ImportPath)
+        ? settings.ImportPath
+        : Path.Combine(builder.Environment.ContentRootPath, settings.ImportPath);
+
+Directory.CreateDirectory(settings.ImportPath);
+builder.Services.AddSingleton(settings);
+builder.Services.AddOptions<M3UOptions>().Configure(options =>
 {
-    builder.Services.AddTransient<AppSettings>(provider => new AppSettings(Settings));
-}
+    options.FilePath = Path.Combine(settings.ImportPath, "lista.m3u");
+});
 
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<M3UService>();

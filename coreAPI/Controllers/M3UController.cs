@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using coreAPI.Classes;
 using coreAPI.Models;
+using Microsoft.Extensions.Options;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -12,16 +13,22 @@ namespace coreAPI.Controllers
         private readonly M3UService _service;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IWebHostEnvironment _env;
+        private readonly IOptions<M3UOptions> _m3uOptions;
         private Dictionary<string, string> _serverMappings;
         private readonly string _userIdPath;
 
         private const string MonitoringServerUrl = "https://jchmip.infoinnova.net:444";
 
-        public M3UController(M3UService service, IHttpClientFactory httpClientFactory, IWebHostEnvironment env)
+        public M3UController(
+            M3UService service,
+            IHttpClientFactory httpClientFactory,
+            IWebHostEnvironment env,
+            IOptions<M3UOptions> m3uOptions)
         {
             _service = service;
             _httpClientFactory = httpClientFactory;
             _env = env;
+            _m3uOptions = m3uOptions;
             _userIdPath = Path.Combine(env.ContentRootPath, "import", "userid.json");
             _serverMappings = LoadServerMappings();
         }
@@ -369,8 +376,7 @@ namespace coreAPI.Controllers
         // Export rápido (por si quieres descargar la lista)
         public IActionResult Download()
         {
-            var bytes = System.IO.File.ReadAllBytes(HttpContext.RequestServices
-                .GetRequiredService<Microsoft.Extensions.Options.IOptions<M3UOptions>>().Value.FilePath);
+            var bytes = System.IO.File.ReadAllBytes(_m3uOptions.Value.FilePath);
             return File(bytes, "application/x-mpegURL", "lista.m3u");
         }
 
@@ -584,7 +590,7 @@ namespace coreAPI.Controllers
                 var client = _httpClientFactory.CreateClient();
 
                 // 1. Leer fichero local custom_ace.txt
-                var customAcePath = Path.Combine(_env.ContentRootPath, "import", "lista.m3u");
+                var customAcePath = _m3uOptions.Value.FilePath;
                 var customUrls = string.Empty;
                 if (System.IO.File.Exists(customAcePath))
                 {

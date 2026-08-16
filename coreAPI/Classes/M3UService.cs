@@ -16,7 +16,7 @@ namespace coreAPI.Classes
 
         public M3UService(IOptions<M3UOptions> options)
         {
-            _filePath = options.Value.FilePath;
+            _filePath = Path.GetFullPath(options.Value.FilePath);
             _backupRetention = Math.Max(0, options.Value.BackupRetention);
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_filePath))!);
             if (!File.Exists(_filePath))
