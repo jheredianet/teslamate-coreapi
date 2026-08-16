@@ -1,0 +1,92 @@
+﻿@model List<coreAPI.Models.M3UEntry>
+@{
+    ViewData["Title"] = "Lista M3U";
+    var groups = (IEnumerable<string>)ViewBag.Groups ?? Array.Empty<string>();
+    string? selected = ViewBag.SelectedGroup as string;
+    string? q = ViewBag.Query as string;
+}
+
+<h2>Lista M3U</h2>
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-success">
+        @TempData["Message"]
+    </div>
+}
+
+
+<form method="get" class="mb-3">
+    <input type="text" name="q" value="@q" placeholder="Buscar por nombre o URL" />
+    <select name="group">
+        <option value="">Todos los grupos</option>
+        @foreach (var g in groups)
+        {
+            <option value="@g" selected="@(g == selected ? "selected" : null)">@g</option>
+        }
+    </select>
+    <button type="submit">Filtrar</button>
+    <a href="@Url.Action("Index", "M3U")">Limpiar</a>
+</form>
+
+<p>
+    <a class="btn btn-primary" href="@Url.Action("Create")">Agregar nuevo</a>
+    <a class="btn btn-primary" href="@Url.Action("Download")">Exportar M3U</a>
+    <a class="btn btn-primary" href="@Url.Action("Import")">Buscar e importar M3U</a>
+    <a class="btn btn-warning" href="@Url.Action("ValidateChannels")">Validar Canales</a>
+</p>
+
+<table class="table table-dark table-striped">
+    <thead>
+        <tr>
+            <th>Orden</th>
+            <th>Logo</th>
+            <th>Canal</th>
+            <th>Grupo</th>
+            <th>Stream</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model.OrderBy(e => e.Order))
+        {
+            <tr>
+                <td>@item.Order</td>
+                <td>
+                    @if (!string.IsNullOrWhiteSpace(item.TVGLogo))
+                    {
+                        <img src="@item.TVGLogo" style="height:30px" />
+                    }
+                </td>
+                <td>@item.ChannelName</td>
+                <td>@item.GroupTitle</td>
+                <td>@item.StreamUrl</td>
+                <td>
+                    <form asp-action="MoveUp" method="post" style="display:inline">
+                        <input type="hidden" name="id" value="@item.Id" />
+                        <button class="btn btn-sm btn-outline-secondary" type="submit">↑</button>
+                        @Html.AntiForgeryToken()
+                    </form>
+                    <form asp-action="MoveDown" method="post" style="display:inline">
+                        <input type="hidden" name="id" value="@item.Id" />
+                        <button class="btn btn-sm btn-outline-secondary" type="submit">↓</button>
+                        @Html.AntiForgeryToken()
+                    </form>
+                    <a class="btn btn-sm btn-warning" href="@Url.Action("Edit", new { id = item.Id })">Editar</a>
+                    <form asp-action="Delete" method="post" style="display:inline" onsubmit="return confirm('¿Eliminar?');">
+                        <input type="hidden" name="id" value="@item.Id" />
+                        <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
+                        @Html.AntiForgeryToken()
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<form asp-action="CleanDuplicates" method="post" style="display:inline">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-danger"
+            onclick="return confirm('¿Eliminar duplicados y aplicar valores por defecto?');">
+        Limpiar duplicados
+    </button>
+</form>

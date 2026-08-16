@@ -9,23 +9,12 @@ namespace coreAPI.Controllers
         // GET: Home/Index
         public ActionResult Index()
         {
-            // Call External API
-            var DataPlan = ExternalAPI.GetChargePlan().Result;
-            var model = new VehicleChargingViewModel();
-            // Ensure DataPlan is not null before passing it to the method
-            if (DataPlan != null)
-            {
-                model = AssignValuesFromOutChargeProgrammingToViewModel(model, DataPlan);
-            }
-            else
-            {
-                // Handle the case where DataPlan is null (e.g., log an error, return an error view, etc.)
-                ModelState.AddModelError(string.Empty, "Failed to retrieve charging plan.");
-            }
-            return View(model);
+            // El módulo de programación de carga está obsoleto.
+            return RedirectToAction("Index", "M3U");
         }
 
         [HttpPost]
+        [NonAction]
         public ActionResult UpdateProgramming(VehicleChargingViewModel model)
         {
             InChargeProgramming cp;
@@ -72,6 +61,7 @@ namespace coreAPI.Controllers
         }
 
         [HttpPost]
+        [NonAction]
         public ActionResult ChargeOnCheapeastHours(VehicleChargingViewModel model)
         {
             // Call External API
@@ -94,6 +84,7 @@ namespace coreAPI.Controllers
         }
 
         [HttpPost]
+        [NonAction]
         public ActionResult ApplyActualSchedule(VehicleChargingViewModel model)
         {
             // Call External API
