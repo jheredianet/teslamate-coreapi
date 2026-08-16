@@ -27,53 +27,56 @@ namespace coreAPI.Classes
         {
             lock (_fileLock)
             {
-                var lines = File.ReadAllLines(_filePath, Encoding.UTF8)
-                                .Where(l => !string.IsNullOrWhiteSpace(l))
-                                .ToList();
-
-                var entries = new List<M3UEntry>();
-                int order = 0;
-
-                for (int i = 0; i < lines.Count; i++)
-                {
-                    var line = lines[i].Trim();
-
-                    // Saltar cabecera y comentarios
-                    if (line.StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    if (line.StartsWith("#EXTINF", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // La siguiente línea debe ser la URL
-                        if (i + 1 >= lines.Count)
-                            break;
-
-                        var meta = line;
-                        var url = lines[i + 1].Trim();
-                        i++; // avanzamos el índice porque consumimos la URL
-
-                        var group = GroupRegex.Match(meta);
-                        var logo = LogoRegex.Match(meta);
-
-                        var namePartIndex = meta.IndexOf(',', StringComparison.Ordinal);
-                        var channelName = namePartIndex >= 0 ? meta[(namePartIndex + 1)..].Trim() : "Unknown";
-
-                        entries.Add(new M3UEntry
-                        {
-                            Id = order,
-                            Order = order,
-                            GroupTitle = group.Success ? group.Groups[1].Value : "",
-                            TVGLogo = logo.Success ? logo.Groups[1].Value : null,
-                            ChannelName = channelName,
-                            StreamUrl = url
-                        });
-                        order++;
-                    }
-                    // Si aparecen líneas que no son EXTINF ni URL, se ignoran
-                }
-
-                return entries;
+                return ParseEntries(File.ReadAllText(_filePath, Encoding.UTF8));
             }
+        }
+
+        public List<M3UEntry> ParseEntries(string content)
+        {
+            var lines = content.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
+
+            var entries = new List<M3UEntry>();
+            int order = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+
+                // Saltar cabecera y comentarios
+                if (line.StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (line.StartsWith("#EXTINF", StringComparison.OrdinalIgnoreCase))
+                {
+                    // La siguiente línea debe ser la URL
+                    if (i + 1 >= lines.Length)
+                        break;
+
+                    var meta = line;
+                    var url = lines[i + 1].Trim();
+                    i++; // avanzamos el índice porque consumimos la URL
+
+                    var group = GroupRegex.Match(meta);
+                    var logo = LogoRegex.Match(meta);
+
+                    var namePartIndex = meta.IndexOf(',', StringComparison.Ordinal);
+                    var channelName = namePartIndex >= 0 ? meta[(namePartIndex + 1)..].Trim() : "Unknown";
+
+                    entries.Add(new M3UEntry
+                    {
+                        Id = order,
+                        Order = order,
+                        GroupTitle = group.Success ? group.Groups[1].Value : "",
+                        TVGLogo = logo.Success ? logo.Groups[1].Value : null,
+                        ChannelName = channelName,
+                        StreamUrl = url
+                    });
+                    order++;
+                }
+                // Si aparecen líneas que no son EXTINF ni URL, se ignoran
+            }
+
+            return entries;
         }
 
         public void SaveEntries(List<M3UEntry> entries)
