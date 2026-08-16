@@ -1,15 +1,72 @@
-﻿@{
-    ViewData["Title"] = "Importar desde HTML";
+﻿@model coreAPI.Models.M3USearchViewModel
+@{
+    ViewData["Title"] = "Buscar e importar M3U";
 }
 
-<h2>Importar desde HTML</h2>
+<h2>Buscar canales M3U</h2>
 
-<form asp-action="Import" method="post">
+<form asp-action="Search" method="post">
     @Html.AntiForgeryToken()
     <div class="mb-3">
-        <label for="htmlContent" class="form-label">Pega aquí el HTML</label>
-        <textarea id="htmlContent" name="htmlContent" class="form-control" rows="15"></textarea>
+        <label for="searchQuery" class="form-label">Texto de búsqueda</label>
+        <input id="searchQuery" name="searchQuery" value="@Model.SearchQuery" class="form-control" placeholder="Ej.: deportes, liga, dazn" />
     </div>
-    <button type="submit" class="btn btn-success">Importar</button>
+    <button type="submit" class="btn btn-primary">Buscar</button>
     <a href="@Url.Action("Index")" class="btn btn-secondary">Cancelar</a>
 </form>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-warning mt-3">@Model.ErrorMessage</div>
+}
+
+@if (Model.Results.Count > 0)
+{
+    <h3 class="mt-4">Resultados (@Model.Results.Count)</h3>
+    <form asp-action="Import" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="SearchQuery" value="@Model.SearchQuery" />
+        <div class="table-responsive">
+            <table class="table table-dark table-striped">
+                <thead>
+                    <tr>
+                        <th>Logo</th>
+                        <th>Canal</th>
+                        <th>Grupo</th>
+                        <th>Stream</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Results.Count; i++)
+                    {
+                        var result = Model.Results[i];
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(result.TVGLogo))
+                                {
+                                    <img src="@result.TVGLogo" style="height:30px" />
+                                }
+                            </td>
+                            <td>
+                                @result.ChannelName
+                                <input type="hidden" name="Results[@i].ChannelName" value="@result.ChannelName" />
+                            </td>
+                            <td>
+                                @result.GroupTitle
+                                <input type="hidden" name="Results[@i].GroupTitle" value="@result.GroupTitle" />
+                            </td>
+                            <td>
+                                @result.StreamUrl
+                                <input type="hidden" name="Results[@i].StreamUrl" value="@result.StreamUrl" />
+                                <input type="hidden" name="Results[@i].TVGLogo" value="@result.TVGLogo" />
+                                <input type="hidden" name="Results[@i].TVGId" value="@result.TVGId" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button type="submit" class="btn btn-success">Importar</button>
+        <a href="@Url.Action("Index")" class="btn btn-secondary">Cancelar</a>
+    </form>
+}
