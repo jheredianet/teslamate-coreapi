@@ -249,7 +249,7 @@ namespace coreAPI.Controllers
         /// Endpoint que devuelve un fichero M3U dinámico procesado según el id proporcionado.
         /// Replica la funcionalidad del script PHP original.
         /// </summary>
-        /// <param name="id">Identificador del servidor de destino (rahm, lahm, nextpvr, mery, jchm, home, cifu)</param>
+        /// <param name="id">Identificador del servidor de destino (se lee del fichero import/listam3u)</param>
         /// <returns>Contenido M3U con content-type audio/x-mpegurl</returns>
         [HttpGet("stream")]
         public async Task<IActionResult> Stream(string? id)
