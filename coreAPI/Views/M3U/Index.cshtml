@@ -35,9 +35,10 @@
     <a class="btn btn-warning" href="@Url.Action("ValidateChannels")">Validar Canales</a>
 </p>
 
-<table class="table table-dark table-striped">
+<table id="m3u-list" class="table table-dark table-striped">
     <thead>
         <tr>
+            <th>Arrastrar</th>
             <th>Orden</th>
             <th>Logo</th>
             <th>Canal</th>
@@ -49,7 +50,8 @@
     <tbody>
         @foreach (var item in Model.OrderBy(e => e.Order))
         {
-            <tr>
+            <tr draggable="true" data-entry-id="@item.Id">
+                <td class="drag-handle" title="Arrastrar para cambiar el orden">☷</td>
                 <td>@item.Order</td>
                 <td>
                     @if (!string.IsNullOrWhiteSpace(item.TVGLogo))
@@ -61,16 +63,6 @@
                 <td>@item.GroupTitle</td>
                 <td>@item.StreamUrl</td>
                 <td>
-                    <form asp-action="MoveUp" method="post" style="display:inline">
-                        <input type="hidden" name="id" value="@item.Id" />
-                        <button class="btn btn-sm btn-outline-secondary" type="submit">↑</button>
-                        @Html.AntiForgeryToken()
-                    </form>
-                    <form asp-action="MoveDown" method="post" style="display:inline">
-                        <input type="hidden" name="id" value="@item.Id" />
-                        <button class="btn btn-sm btn-outline-secondary" type="submit">↓</button>
-                        @Html.AntiForgeryToken()
-                    </form>
                     <a class="btn btn-sm btn-warning" href="@Url.Action("Edit", new { id = item.Id })">Editar</a>
                     <form asp-action="Delete" method="post" style="display:inline" onsubmit="return confirm('¿Eliminar?');">
                         <input type="hidden" name="id" value="@item.Id" />
@@ -82,6 +74,11 @@
         }
     </tbody>
 </table>
+
+<form id="m3u-reorder-form" asp-action="Reorder" method="post" class="d-none">
+    @Html.AntiForgeryToken()
+</form>
+<div id="m3u-reorder-status" class="mt-2" role="status"></div>
 
 <form asp-action="CleanDuplicates" method="post" style="display:inline">
     @Html.AntiForgeryToken()

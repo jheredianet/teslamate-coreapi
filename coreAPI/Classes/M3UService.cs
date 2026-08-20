@@ -136,6 +136,32 @@ namespace coreAPI.Classes
             }
         }
 
+        public void Reorder(IReadOnlyList<int> orderedIds)
+        {
+            var entries = LoadEntries().OrderBy(e => e.Order).ToList();
+            var entriesById = entries.ToDictionary(e => e.Id);
+            var positions = entries
+                .Select((entry, index) => new { entry.Id, index })
+                .Where(x => orderedIds.Contains(x.Id))
+                .Select(x => x.index)
+                .ToList();
+
+            var reorderedEntries = orderedIds
+                .Where(entriesById.ContainsKey)
+                .Select(id => entriesById[id])
+                .ToList();
+
+            for (var i = 0; i < positions.Count && i < reorderedEntries.Count; i++)
+                entries[positions[i]] = reorderedEntries[i];
+
+            // Actualizar el valor persistido del orden antes de guardar.
+            // SaveEntries ordena usando esta propiedad, no la posición actual de la lista.
+            for (var i = 0; i < entries.Count; i++)
+                entries[i].Order = i;
+
+            SaveEntries(entries);
+        }
+
         private void CreateBackup()
         {
             if (!File.Exists(_filePath)) return;

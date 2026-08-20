@@ -152,6 +152,16 @@ namespace coreAPI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public IActionResult Reorder(List<int> orderedIds)
+        {
+            if (orderedIds.Count > 0)
+                _service.Reorder(orderedIds);
+
+            return Ok();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult CleanDuplicates()
         {
             var entries = _service.LoadEntries();

@@ -21,6 +21,26 @@ body {
     margin-bottom: 60px;
 }
 
+#m3u-list tbody tr[draggable="true"] {
+    cursor: grab;
+}
+
+#m3u-list tbody tr.dragging {
+    opacity: 0.45;
+}
+
+#m3u-list tbody tr.drag-over {
+    outline: 2px dashed #3498db;
+}
+
+#m3u-list .drag-handle {
+    width: 70px;
+    font-size: 1.4rem;
+    text-align: center;
+    cursor: grab;
+    user-select: none;
+}
+
 .divTable {
     display: table;
     width: 80%;
