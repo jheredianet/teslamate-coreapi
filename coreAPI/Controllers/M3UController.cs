@@ -612,15 +612,13 @@ namespace coreAPI.Controllers
                 var searchUrl = $"{MonitoringServerUrl}/search.m3u?query={searchQuery}";
 
                 var searchString = await client.GetStringAsync(searchUrl);
+                var searchM3u = await BuildSearchM3uAsync(searchString, client);
 
-                // 3. Eliminar #EXTM3U extra del contenido remoto
-                searchString = searchString.Replace("#EXTM3U", "", StringComparison.OrdinalIgnoreCase);
+                // 3. Concatenar el fichero local con los resultados JSON convertidos a M3U
+                var vdata = customUrls + searchM3u;
 
-                // 4. Concatenar contenidos (customUrls + searchString)
-                var vdata = customUrls + searchString;
-
-                // 5. Reemplazar acestream:// por URL del usuario
-                vdata = vdata.Replace("acestream://", $"{userIp}/ace/getstream?id=");
+                // 5. Reemplazar acestream:// por URL HLS del usuario
+                vdata = vdata.Replace("acestream://", $"{userIp}/ace/manifest.m3u8?id=");
 
                 // 6. Reemplazar URL del servidor de monitorización por userIp
                 vdata = vdata.Replace(MonitoringServerUrl, userIp);
@@ -660,6 +658,80 @@ namespace coreAPI.Controllers
             {
                 return StatusCode(500, $"Error interno: {ex.Message}");
             }
+        }
+
+        private async Task<string> BuildSearchM3uAsync(string searchJson, HttpClient client)
+        {
+            using var document = JsonDocument.Parse(searchJson);
+            var builder = new StringBuilder();
+            var infohashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (!document.RootElement.TryGetProperty("result", out var result) ||
+                !result.TryGetProperty("results", out var groups) ||
+                groups.ValueKind != JsonValueKind.Array)
+            {
+                return string.Empty;
+            }
+
+            foreach (var group in groups.EnumerateArray())
+            {
+                var groupName = GetJsonString(group, "name") ?? "Otros";
+                if (!group.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var item in items.EnumerateArray())
+                {
+                    var infohash = GetJsonString(item, "infohash");
+                    if (string.IsNullOrWhiteSpace(infohash))
+                        continue;
+
+                    if (item.TryGetProperty("disabled", out var disabled) &&
+                        disabled.ValueKind == JsonValueKind.True)
+                        continue;
+
+                    if (item.TryGetProperty("status", out var status) &&
+                        status.ValueKind == JsonValueKind.Number &&
+                        status.GetInt32() != 2)
+                        continue;
+
+                    if (item.TryGetProperty("availability", out var availability) &&
+                        availability.ValueKind == JsonValueKind.Number &&
+                        availability.GetDouble() <= 0)
+                        continue;
+
+                    string contentId;
+                    try
+                    {
+                        contentId = await GetContentIdAsync(client, infohash);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // No añadir contenidos que ya no estén disponibles en Ace Stream.
+                        continue;
+                    }
+
+                    if (!infohashes.Add(infohash))
+                        continue;
+
+                    var channelName = GetJsonString(item, "name") ?? groupName;
+                    channelName = CleanM3uText(channelName);
+                    groupName = CleanM3uText(groupName);
+
+                    builder.AppendLine(
+                        $"#EXTINF:-1 tvg-id=\"{groupName}\" group-title=\"{groupName}\", {channelName}");
+                    builder.AppendLine($"acestream://{contentId}");
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        private static string CleanM3uText(string value)
+        {
+            return value.Replace("\"", "'")
+                .Replace("\r", " ")
+                .Replace("\n", " ")
+                .Trim();
         }
 
     }

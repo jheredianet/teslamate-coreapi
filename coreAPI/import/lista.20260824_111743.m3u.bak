@@ -1,5 +1,5 @@
 ﻿#EXTM3U
-#EXTINF:-1 tvg-logo="https://i.ibb.co/FVzKq1y/dazn1.png" tvg-id="La Liga" group-title="La Liga", DAZN LALIGA
+#EXTINF:-1 tvg-logo="https://i.ibb.co/FVzKq1y/dazn1.png" tvg-id="La Liga" group-title="La Liga", DAZN LALIGA 1
 acestream://df98650743f24a245c44cdf2851e57078f4c487a
 #EXTINF:-1 tvg-logo="https://i.ibb.co/FVzKq1y/dazn1.png" tvg-id="La Liga" group-title="La Liga", DAZN LALIGA 2
 acestream://d1596a3988b84a4d2711fd380eb8a53256ad74ae
@@ -19,10 +19,10 @@ acestream://cc108ae39f92c48f6c946763047bd1c9b7b7d889
 acestream://91b2a1fe85f5bb4a6cf9ef6d01cc65883d986920
 #EXTINF:-1 tvg-logo="https://raw.githubusercontent.com/davidmuma/picons_dobleM/master/icon/M%2B%20Liga%20de%20Campeones.png" tvg-id="Champions" group-title="Champions", M+ LIGA DE CAMPEONES 2
 acestream://e572a5178ff72eed7d1d751a18b4b3419699f370
+#EXTINF:-1 tvg-logo="https://imgs.search.brave.com/CdpNFTo17nLkZI4Pi8u9qCKMGOscbr4J30seuK8Mbk8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/YWRzbHpvbmUubmV0/L2FwcC91cGxvYWRz/LWFkc2x6b25lLm5l/dC8yMDI2LzAyL21v/dG9ncC1kYXpuLmpw/Zw" tvg-id="Otros" group-title="Otros", DAZN Moto GP 1
+acestream://ac33342ccf7d40d46174229085461d95000b9137
 #EXTINF:-1 tvg-logo="https://imgs.search.brave.com/CdpNFTo17nLkZI4Pi8u9qCKMGOscbr4J30seuK8Mbk8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/YWRzbHpvbmUubmV0/L2FwcC91cGxvYWRz/LWFkc2x6b25lLm5l/dC8yMDI2LzAyL21v/dG9ncC1kYXpuLmpw/Zw" tvg-id="Otros" group-title="Otros", DAZN Moto GP 2
 acestream://e9975d38aaa4475ac0b1fa0faa541bbadd85a662
-#EXTINF:-1 tvg-logo="https://imgs.search.brave.com/NDMXX7S0XjOnRKsueZJmyJkK9F5b2kB8xtOh9a1Q2Qc/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9wNy5o/aWNsaXBhcnQuY29t/L3ByZXZpZXcvNDgx/LzYvNDA4L2VsZXZl/bi1zcG9ydHMtbmV0/d29yay1sb2dvLXRl/bGV2aXNpb24tY2hh/bm5lbC1zcG9ydHMt/bmV0d29yay5qcGc" tvg-id="Otros" group-title="Otros", ELEVEN SPORTS
-acestream://458a0ddd7d193f6d2750cd14d03a47f47a808e09
 #EXTINF:-1 tvg-logo="https://listaiptvtelevision.com/wp-content/uploads/m3u.png" tvg-id="Otros" group-title="Otros", Real Madrid TV 1
 acestream://44ea3d00ee2abfd5d89792a32851d7af61f16f0a
 #EXTINF:-1 tvg-logo="https://listaiptvtelevision.com/wp-content/uploads/m3u.png" tvg-id="Otros" group-title="Otros", Real Madrid TV 2
@@ -31,8 +31,8 @@ acestream://ac353757b626cedc6461d8eb73bfffa15fbb7be7
 acestream://1ab443f5b4beb6d586f19e8b25b9f9646cf2ab78
 #EXTINF:-1 tvg-logo="https://imgs.search.brave.com/Qxxtn13FZXb5Hu08MqHk7_Ns7UY-ozgU105MrTa8J8I/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly92Lndw/aW1nLnBsL09DODBN/amN1WUNKWlVqdFpU/QTV0TnhvS2J3a1RI/UkF6VEVaZ0dSY1VL/Q1lhSEc4ZlFVOXRi/RlJmS2dWTUZ6MHFY/MWc1UlZKSGQyd01B/bnBFRXhzb1lVVQ" tvg-id="Otros" group-title="Otros", CANAL+ SPORT
 acestream://6390b1ab967a25777ea2dde1d41b7400cc0601d3
-#EXTINF:-1 tvg-logo="https://imgs.search.brave.com/CdpNFTo17nLkZI4Pi8u9qCKMGOscbr4J30seuK8Mbk8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/YWRzbHpvbmUubmV0/L2FwcC91cGxvYWRz/LWFkc2x6b25lLm5l/dC8yMDI2LzAyL21v/dG9ncC1kYXpuLmpw/Zw" tvg-id="Otros" group-title="Otros", DAZN Moto GP 1
-acestream://ac33342ccf7d40d46174229085461d95000b9137
+#EXTINF:-1 tvg-logo="https://imgs.search.brave.com/NDMXX7S0XjOnRKsueZJmyJkK9F5b2kB8xtOh9a1Q2Qc/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9wNy5o/aWNsaXBhcnQuY29t/L3ByZXZpZXcvNDgx/LzYvNDA4L2VsZXZl/bi1zcG9ydHMtbmV0/d29yay1sb2dvLXRl/bGV2aXNpb24tY2hh/bm5lbC1zcG9ydHMt/bmV0d29yay5qcGc" tvg-id="Otros" group-title="Otros", ELEVEN SPORTS
+acestream://458a0ddd7d193f6d2750cd14d03a47f47a808e09
 #EXTINF:-1 tvg-logo="https://imgs.search.brave.com/UR8FERxP5O91T95EtQq6qdf_hLxqZLaPyUT9RADRhpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/bW92aXN0YXJwbHVz/LmVzL3JlY29ydGUv/bi9nYWxlcmlhL01E/QVpOTElENDM1ODI1/NA" tvg-id="Otros" group-title="Otros", DAZN Mundial 2
 acestream://414222dc7b69a626f29eb964450dae44b3bc9b36
 #EXTINF:-1 tvg-logo="https://imgs.search.brave.com/UR8FERxP5O91T95EtQq6qdf_hLxqZLaPyUT9RADRhpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/bW92aXN0YXJwbHVz/LmVzL3JlY29ydGUv/bi9nYWxlcmlhL01E/QVpOTElENDM1ODI1/NA" tvg-id="Otros" group-title="Otros", DAZN Mundial 1
