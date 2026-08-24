@@ -586,13 +586,23 @@ namespace coreAPI.Controllers
         /// Replica la funcionalidad del script PHP original.
         /// </summary>
         /// <param name="id">Identificador del servidor de destino (se lee del fichero import/listam3u)</param>
+        /// <param name="format">Formato de salida opcional: mpegts (predeterminado) o hls</param>
         /// <returns>Contenido M3U con content-type audio/x-mpegurl</returns>
         [HttpGet("stream")]
-        public async Task<IActionResult> Stream(string? id)
+        public async Task<IActionResult> Stream(string? id, string? format = null)
         {
             if (string.IsNullOrWhiteSpace(id) || !_serverMappings.TryGetValue(id, out var userIp))
             {
                 return BadRequest("Parámetro 'id' requerido. Valores válidos: " + string.Join(", ", _serverMappings.Keys));
+            }
+
+            var outputFormat = string.IsNullOrWhiteSpace(format)
+                ? "mpegts"
+                : format.Trim().ToLowerInvariant();
+
+            if (outputFormat is not "mpegts" and not "hls")
+            {
+                return BadRequest("Parámetro 'format' no válido. Valores permitidos: mpegts o hls.");
             }
 
             try
@@ -617,8 +627,11 @@ namespace coreAPI.Controllers
                 // 3. Concatenar el fichero local con los resultados JSON convertidos a M3U
                 var vdata = customUrls + searchM3u;
 
-                // 5. Reemplazar acestream:// por URL HLS del usuario
-                vdata = vdata.Replace("acestream://", $"{userIp}/ace/manifest.m3u8?id=");
+                // 5. Reemplazar acestream:// por la URL de salida solicitada
+                var aceStreamUrl = outputFormat == "hls"
+                    ? $"{userIp}/ace/manifest.m3u8?id="
+                    : $"{userIp}/ace/getstream?id=";
+                vdata = vdata.Replace("acestream://", aceStreamUrl);
 
                 // 6. Reemplazar URL del servidor de monitorización por userIp
                 vdata = vdata.Replace(MonitoringServerUrl, userIp);
