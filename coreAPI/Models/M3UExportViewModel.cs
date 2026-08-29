@@ -6,6 +6,8 @@ namespace coreAPI.Models
 
         public string? SelectedServerId { get; set; }
 
+        public string Format { get; set; } = "mpegts";
+
         public string? ErrorMessage { get; set; }
     }
 }

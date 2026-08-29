@@ -368,12 +368,16 @@ namespace coreAPI.Controllers
             var model = new M3UExportViewModel
             {
                 Servers = _serverMappingService.LoadAll(),
-                SelectedServerId = serverId
+                SelectedServerId = serverId,
+                Format = Request.Form["format"].ToString().ToLowerInvariant()
             };
+
+            if (model.Format is not "mpegts" and not "hls")
+                model.Format = "mpegts";
 
             try
             {
-                var content = await BuildStreamContentAsync(serverId, "mpegts");
+                var content = await BuildStreamContentAsync(serverId, model.Format);
                 return File(Encoding.UTF8.GetBytes(content), "audio/x-mpegurl", "lista.m3u");
             }
             catch (ArgumentException ex)

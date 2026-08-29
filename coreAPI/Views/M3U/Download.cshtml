@@ -25,6 +25,53 @@
             }
         </select>
     </div>
+    <fieldset class="mb-3">
+        <legend class="fs-6">Formato</legend>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="format" id="format-mpegts"
+                   value="mpegts" checked="@(Model.Format == "mpegts" ? "checked" : null)" />
+            <label class="form-check-label" for="format-mpegts">MPEG-TS</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="format" id="format-hls"
+                   value="hls" checked="@(Model.Format == "hls" ? "checked" : null)" />
+            <label class="form-check-label" for="format-hls">HLS</label>
+        </div>
+    </fieldset>
+
+    <div class="mb-3">
+        <label class="form-label" for="stream-link">Enlace de la lista</label>
+        <a id="stream-link" href="#" class="d-block text-break">Selecciona un servidor</a>
+    </div>
+
     <button class="btn btn-primary" type="submit">Descargar</button>
     <a class="btn btn-secondary" href="@Url.Action("Index")">Cancelar</a>
 </form>
+
+<script>
+    (() => {
+        const serverSelect = document.getElementById('serverId');
+        const formatInputs = document.querySelectorAll('input[name="format"]');
+        const streamLink = document.getElementById('stream-link');
+        const streamBaseUrl = '@Context.Request.Scheme://@Context.Request.Host';
+
+        function updateStreamLink() {
+            const serverId = serverSelect.value;
+            const format = document.querySelector('input[name="format"]:checked')?.value || 'mpegts';
+
+            if (!serverId) {
+                streamLink.href = '#';
+                streamLink.textContent = 'Selecciona un servidor';
+                return;
+            }
+
+            const url = `${streamBaseUrl}/stream?id=${encodeURIComponent(serverId)}&format=${encodeURIComponent(format)}`;
+            streamLink.href = url;
+            streamLink.textContent = url;
+        }
+
+        serverSelect.addEventListener('change', updateStreamLink);
+        formatInputs.forEach(input => input.addEventListener('change', updateStreamLink));
+        updateStreamLink();
+    })();
+</script>
