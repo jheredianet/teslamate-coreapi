@@ -179,7 +179,18 @@ namespace coreAPI.Classes
         private static void AddParameters(SqliteCommand command, ServerMapping mapping)
         {
             command.Parameters.AddWithValue("$name", mapping.Name.Trim());
-            command.Parameters.AddWithValue("$base_url", mapping.BaseUrl.Trim().TrimEnd('/'));
+            command.Parameters.AddWithValue("$base_url", NormalizeBaseUrl(mapping.BaseUrl));
+        }
+
+        private static string NormalizeBaseUrl(string baseUrl)
+        {
+            var value = baseUrl.Trim();
+
+            // En acestream:// las barras finales forman parte del protocolo.
+            if (value.StartsWith("acestream://", StringComparison.OrdinalIgnoreCase))
+                return value;
+
+            return value.TrimEnd('/');
         }
     }
 }
