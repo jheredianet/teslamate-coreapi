@@ -484,11 +484,16 @@ namespace coreAPI.Controllers
             var customAcePath = _m3uOptions.Value.FilePath;
             var vdata = await System.IO.File.ReadAllTextAsync(customAcePath, Encoding.UTF8);
 
-            var aceStreamUrl = outputFormat == "hls"
-                ? $"{userIp}/ace/manifest.m3u8?id="
-                : $"{userIp}/ace/getstream?id=";
-            vdata = vdata.Replace("acestream://", aceStreamUrl);
-            vdata = vdata.Replace(MonitoringServerUrl, userIp);
+            // acestream:// indica que se debe conservar cada stream tal como está
+            // almacenado, sin sustituirlo por una URL HTTP del servidor.
+            if (!userIp.Equals("acestream://", StringComparison.OrdinalIgnoreCase))
+            {
+                var aceStreamUrl = outputFormat == "hls"
+                    ? $"{userIp}/ace/manifest.m3u8?id="
+                    : $"{userIp}/ace/getstream?id=";
+                vdata = vdata.Replace("acestream://", aceStreamUrl);
+                vdata = vdata.Replace(MonitoringServerUrl, userIp);
+            }
 
             var lines = vdata.Split('\n');
             var filteredLines = new List<string>();
