@@ -250,30 +250,6 @@ namespace coreAPI.Controllers
                 using var client = _httpClientFactory.CreateClient();
                 client.Timeout = TimeSpan.FromSeconds(8);
 
-                if (TryGetAceIdentifier(entry.StreamUrl, out var parameterName, out var identifier))
-                {
-                    var apiUrl = $"{MonitoringServerUrl}/server/api?api_version=3&method=get_media_files&{parameterName}={Uri.EscapeDataString(identifier)}";
-                    using var response = await client.GetAsync(apiUrl);
-                    var body = await response.Content.ReadAsStringAsync();
-
-                    if (response.IsSuccessStatusCode &&
-                        TryGetApiResult(body, out var apiResult))
-                    {
-                        var name = GetJsonString(apiResult, "name");
-                        var type = GetJsonString(apiResult, "type");
-                        result.Status = "Online";
-                        result.Details = string.IsNullOrWhiteSpace(name)
-                            ? $"Ace Stream disponible{FormatType(type)}"
-                            : $"{name}{FormatType(type)}";
-                        return result;
-                    }
-
-                    result.Status = "Offline";
-                    result.Details = "Ace Stream no disponible o sin metadatos.";
-                    result.SuggestDelete = true;
-                    return result;
-                }
-
                 if (Uri.TryCreate(entry.StreamUrl, UriKind.Absolute, out var uri) &&
                     (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
                      uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
@@ -322,59 +298,11 @@ namespace coreAPI.Controllers
             }
         }
 
-        private static bool TryGetAceIdentifier(string? streamUrl, out string parameterName, out string identifier)
-        {
-            parameterName = string.Empty;
-            identifier = string.Empty;
-
-            if (string.IsNullOrWhiteSpace(streamUrl)) return false;
-            var value = streamUrl.Trim();
-
-            if (value.StartsWith("acestream://", StringComparison.OrdinalIgnoreCase))
-            {
-                parameterName = "content_id";
-                identifier = value["acestream://".Length..].Trim();
-                return !string.IsNullOrWhiteSpace(identifier);
-            }
-
-            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
-            if (!uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
-                !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return false;
-
-            var infohash = GetQueryParameter(uri.Query.TrimStart('?'), "infohash");
-            if (!string.IsNullOrWhiteSpace(infohash))
-            {
-                parameterName = "infohash";
-                identifier = infohash;
-                return true;
-            }
-
-            return false;
-        }
-
-        private static bool TryGetApiResult(string body, out JsonElement result)
-        {
-            using var json = JsonDocument.Parse(body);
-            if (json.RootElement.TryGetProperty("result", out result) && result.ValueKind == JsonValueKind.Object)
-            {
-                result = result.Clone();
-                return true;
-            }
-
-            result = default;
-            return false;
-        }
-
         private static string? GetJsonString(JsonElement element, string propertyName)
         {
             return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
                 ? value.GetString()
                 : null;
-        }
-
-        private static string FormatType(string? type)
-        {
-            return string.IsNullOrWhiteSpace(type) ? string.Empty : $" ({type})";
         }
 
         private static bool IsSuccessful(HttpStatusCode statusCode)
