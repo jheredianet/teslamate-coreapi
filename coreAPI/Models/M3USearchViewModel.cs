@@ -4,7 +4,7 @@ namespace coreAPI.Models
     {
         public string SearchQuery { get; set; } = string.Empty;
 
-        public List<M3UEntry> Results { get; set; } = new();
+        public string? RawJson { get; set; }
 
         public string? ErrorMessage { get; set; }
     }

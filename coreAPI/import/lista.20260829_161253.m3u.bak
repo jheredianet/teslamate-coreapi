@@ -1,5 +1,5 @@
 ﻿#EXTM3U
-#EXTINF:-1 tvg-logo="https://i.ibb.co/FVzKq1y/dazn1.png" tvg-id="La Liga" group-title="La Liga", DAZN LALIGA
+#EXTINF:-1 tvg-logo="https://i.ibb.co/FVzKq1y/dazn1.png" tvg-id="La Liga" group-title="La Liga", DAZN LALIGA 1
 acestream://df98650743f24a245c44cdf2851e57078f4c487a
 #EXTINF:-1 tvg-logo="https://i.ibb.co/FVzKq1y/dazn1.png" tvg-id="La Liga" group-title="La Liga", DAZN LALIGA 2
 acestream://d1596a3988b84a4d2711fd380eb8a53256ad74ae
@@ -33,7 +33,7 @@ acestream://1ab443f5b4beb6d586f19e8b25b9f9646cf2ab78
 acestream://6390b1ab967a25777ea2dde1d41b7400cc0601d3
 #EXTINF:-1 tvg-logo="https://imgs.search.brave.com/NDMXX7S0XjOnRKsueZJmyJkK9F5b2kB8xtOh9a1Q2Qc/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9wNy5o/aWNsaXBhcnQuY29t/L3ByZXZpZXcvNDgx/LzYvNDA4L2VsZXZl/bi1zcG9ydHMtbmV0/d29yay1sb2dvLXRl/bGV2aXNpb24tY2hh/bm5lbC1zcG9ydHMt/bmV0d29yay5qcGc" tvg-id="Otros" group-title="Otros", ELEVEN SPORTS
 acestream://458a0ddd7d193f6d2750cd14d03a47f47a808e09
-#EXTINF:-1 tvg-logo="https://imgs.search.brave.com/UR8FERxP5O91T95EtQq6qdf_hLxqZLaPyUT9RADRhpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/bW92aXN0YXJwbHVz/LmVzL3JlY29ydGUv/bi9nYWxlcmlhL01E/QVpOTElENDM1ODI1/NA" tvg-id="Otros" group-title="Otros", DAZN Mundial 2
-acestream://414222dc7b69a626f29eb964450dae44b3bc9b36
 #EXTINF:-1 tvg-logo="https://imgs.search.brave.com/UR8FERxP5O91T95EtQq6qdf_hLxqZLaPyUT9RADRhpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/bW92aXN0YXJwbHVz/LmVzL3JlY29ydGUv/bi9nYWxlcmlhL01E/QVpOTElENDM1ODI1/NA" tvg-id="Otros" group-title="Otros", DAZN Mundial 1
 acestream://ccfde4bc75d14c79dd09af72434568a0e732d507
+#EXTINF:-1 tvg-logo="https://imgs.search.brave.com/UR8FERxP5O91T95EtQq6qdf_hLxqZLaPyUT9RADRhpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly93d3cu/bW92aXN0YXJwbHVz/LmVzL3JlY29ydGUv/bi9nYWxlcmlhL01E/QVpOTElENDM1ODI1/NA" tvg-id="Otros" group-title="Otros", DAZN Mundial 2
+acestream://414222dc7b69a626f29eb964450dae44b3bc9b36

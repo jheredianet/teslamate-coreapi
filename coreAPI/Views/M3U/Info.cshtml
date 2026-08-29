@@ -1,0 +1,32 @@
+﻿@model coreAPI.Models.M3UInfoViewModel
+@{
+    ViewData["Title"] = "Información del canal";
+}
+
+<h2>Información del canal</h2>
+
+<dl class="row">
+    <dt class="col-sm-2">Canal</dt>
+    <dd class="col-sm-10">@Model.Entry.ChannelName</dd>
+    <dt class="col-sm-2">Stream</dt>
+    <dd class="col-sm-10">@Model.Entry.StreamUrl</dd>
+</dl>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-warning">@Model.ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.PlaybackJson))
+{
+    <h3>Respuesta de reproducción</h3>
+    <pre class="bg-dark text-light p-3 rounded" style="max-height: 50vh; overflow: auto;"><code>@Model.PlaybackJson</code></pre>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.StatsJson))
+{
+    <h3>Estado de la sesión</h3>
+    <pre class="bg-dark text-light p-3 rounded" style="max-height: 50vh; overflow: auto;"><code>@Model.StatsJson</code></pre>
+}
+
+<a href="@Url.Action("Index")" class="btn btn-secondary">Volver</a>

@@ -31,8 +31,7 @@
 <p>
     <a class="btn btn-primary" href="@Url.Action("Create")">Agregar nuevo</a>
     <a class="btn btn-primary" href="@Url.Action("Download")">Exportar M3U</a>
-    <a class="btn btn-primary" href="@Url.Action("Import")">Buscar e importar M3U</a>
-    <a class="btn btn-warning" href="@Url.Action("ValidateChannels")">Validar Canales</a>
+    <a class="btn btn-primary" href="@Url.Action("Search")">Buscar</a>
 </p>
 
 <table id="m3u-list" class="table table-dark table-striped">
@@ -63,12 +62,15 @@
                 <td>@item.GroupTitle</td>
                 <td>@item.StreamUrl</td>
                 <td>
-                    <a class="btn btn-sm btn-warning" href="@Url.Action("Edit", new { id = item.Id })">Editar</a>
-                    <form asp-action="Delete" method="post" style="display:inline" onsubmit="return confirm('¿Eliminar?');">
-                        <input type="hidden" name="id" value="@item.Id" />
-                        <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
-                        @Html.AntiForgeryToken()
-                    </form>
+                    <div class="d-flex align-items-center gap-1">
+                        <a class="btn btn-sm btn-warning" href="@Url.Action("Edit", new { id = item.Id })">Editar</a>
+                        <form asp-action="Delete" method="post" class="m-0" onsubmit="return confirm('¿Eliminar?');">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
+                            @Html.AntiForgeryToken()
+                        </form>
+                        <a class="btn btn-sm btn-primary" href="@Url.Action("Info", new { id = item.Id })">Info</a>
+                    </div>
                 </td>
             </tr>
         }
@@ -83,7 +85,7 @@
 <form asp-action="CleanDuplicates" method="post" style="display:inline">
     @Html.AntiForgeryToken()
     <button type="submit" class="btn btn-danger"
-            onclick="return confirm('¿Eliminar duplicados y aplicar valores por defecto?');">
-        Limpiar duplicados
+            onclick="return confirm('¿Limpiar duplicados y consolidar la lista manteniendo el orden actual?');">
+        Limpiar duplicados y Consolidar lista
     </button>
 </form>
