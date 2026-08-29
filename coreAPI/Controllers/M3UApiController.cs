@@ -51,7 +51,7 @@ namespace coreAPI.Controllers
         public ActionResult<M3UEntry> Create([FromBody] M3UEntry entry)
         {
             var entries = _service.LoadEntries();
-            entry.Id = entries.Count > 0 ? entries.Max(e => e.Id) + 1 : 0;
+            entry.Id = 0;
             entry.Order = entries.Count > 0 ? entries.Max(e => e.Order) + 1 : 0;
 
             entries.Add(entry);

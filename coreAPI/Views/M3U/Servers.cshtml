@@ -1,0 +1,45 @@
+﻿@model List<coreAPI.Models.ServerMapping>
+@{
+    ViewData["Title"] = "Servidores";
+}
+
+<h2>Mantenimiento de servidores</h2>
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-success">@TempData["Message"]</div>
+}
+
+<p>
+    <a class="btn btn-primary" href="@Url.Action("CreateServer")">Agregar servidor</a>
+    <a class="btn btn-secondary" href="@Url.Action("Index")">Volver</a>
+</p>
+
+<div class="table-responsive">
+    <table class="table table-dark table-striped">
+        <thead>
+            <tr>
+                <th>Identificador</th>
+                <th>URL base</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var mapping in Model)
+            {
+                <tr>
+                    <td>@mapping.Name</td>
+                    <td>@mapping.BaseUrl</td>
+                    <td>
+                        <a class="btn btn-sm btn-warning" href="@Url.Action("EditServer", new { id = mapping.Id })">Editar</a>
+                        <form asp-action="DeleteServer" method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este servidor?');">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@mapping.Id" />
+                            <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

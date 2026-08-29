@@ -1,0 +1,27 @@
+﻿@model coreAPI.Models.ServerMapping
+@{
+    ViewData["Title"] = "Editar servidor";
+}
+
+<h2>Editar servidor</h2>
+
+<form asp-action="EditServer" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <div class="mb-3">
+        <label class="form-label" asp-for="Name"></label>
+        <input class="form-control" asp-for="Name" />
+        <span class="text-danger" asp-validation-for="Name"></span>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" asp-for="BaseUrl"></label>
+        <input class="form-control" asp-for="BaseUrl" />
+        <span class="text-danger" asp-validation-for="BaseUrl"></span>
+    </div>
+    <button class="btn btn-success" type="submit">Guardar</button>
+    <a class="btn btn-secondary" href="@Url.Action("Servers")">Cancelar</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

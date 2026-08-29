@@ -10,50 +10,23 @@ namespace coreAPI.Controllers
     public class M3UController : Controller
     {
         private readonly M3UService _service;
+        private readonly ServerMappingService _serverMappingService;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IWebHostEnvironment _env;
         private readonly IOptions<M3UOptions> _m3uOptions;
-        private Dictionary<string, string> _serverMappings;
-        private readonly string _userIdPath;
 
         private const string MonitoringServerUrl = "https://jchmip.infoinnova.net:444";
         private static readonly Uri MonitoringServerUri = new(MonitoringServerUrl);
 
         public M3UController(
             M3UService service,
+            ServerMappingService serverMappingService,
             IHttpClientFactory httpClientFactory,
-            IWebHostEnvironment env,
             IOptions<M3UOptions> m3uOptions)
         {
             _service = service;
+            _serverMappingService = serverMappingService;
             _httpClientFactory = httpClientFactory;
-            _env = env;
             _m3uOptions = m3uOptions;
-            _userIdPath = Path.Combine(env.ContentRootPath, "import", "userid.json");
-            _serverMappings = LoadServerMappings();
-        }
-
-        private Dictionary<string, string> LoadServerMappings()
-        {
-            if (!System.IO.File.Exists(_userIdPath))
-            {
-                return new Dictionary<string, string>();
-            }
-
-            try
-            {
-                var json = System.IO.File.ReadAllText(_userIdPath, Encoding.UTF8);
-                return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
-            }
-            catch
-            {
-                return new Dictionary<string, string>();
-            }
-        }
-
-        public void ReloadServerMappings()
-        {
-            _serverMappings = LoadServerMappings();
         }
 
         public IActionResult Index(string? q, string? group)
@@ -92,7 +65,7 @@ namespace coreAPI.Controllers
             if (!ModelState.IsValid) return View(entry);
 
             var entries = _service.LoadEntries();
-            entry.Id = entries.Count;
+            entry.Id = 0;
             entry.Order = entries.Count;
             entries.Add(entry);
             _service.SaveEntries(entries);
@@ -191,6 +164,79 @@ namespace coreAPI.Controllers
 
             TempData["Message"] = "Lista depurada y consolidada: duplicados eliminados, orden conservado y valores por defecto aplicados.";
             return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        public IActionResult Servers()
+        {
+            return View(_serverMappingService.LoadAll());
+        }
+
+        [HttpGet]
+        public IActionResult CreateServer()
+        {
+            return View(new ServerMapping());
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult CreateServer(ServerMapping mapping)
+        {
+            if (!ModelState.IsValid)
+                return View(mapping);
+
+            try
+            {
+                _serverMappingService.Create(mapping);
+                TempData["Message"] = "Servidor guardado correctamente.";
+                return RedirectToAction(nameof(Servers));
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(nameof(ServerMapping.Name), ex.Message);
+                return View(mapping);
+            }
+        }
+
+        [HttpGet]
+        public IActionResult EditServer(int id)
+        {
+            var mapping = _serverMappingService.GetById(id);
+            return mapping == null ? NotFound() : View(mapping);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult EditServer(ServerMapping mapping)
+        {
+            if (!ModelState.IsValid)
+                return View(mapping);
+
+            try
+            {
+                if (!_serverMappingService.Update(mapping))
+                    return NotFound();
+
+                TempData["Message"] = "Servidor actualizado correctamente.";
+                return RedirectToAction(nameof(Servers));
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(nameof(ServerMapping.Name), ex.Message);
+                return View(mapping);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult DeleteServer(int id)
+        {
+            if (_serverMappingService.Delete(id))
+                TempData["Message"] = "Servidor eliminado correctamente.";
+            else
+                TempData["Message"] = "El servidor no existe.";
+
+            return RedirectToAction(nameof(Servers));
         }
 
         [HttpGet]
@@ -306,11 +352,40 @@ namespace coreAPI.Controllers
         }
 
 
-        // Export rápido (por si quieres descargar la lista)
+        [HttpGet]
         public IActionResult Download()
         {
-            var bytes = System.IO.File.ReadAllBytes(_m3uOptions.Value.FilePath);
-            return File(bytes, "application/x-mpegURL", "lista.m3u");
+            return View(new M3UExportViewModel
+            {
+                Servers = _serverMappingService.LoadAll()
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Download(string serverId)
+        {
+            var model = new M3UExportViewModel
+            {
+                Servers = _serverMappingService.LoadAll(),
+                SelectedServerId = serverId
+            };
+
+            try
+            {
+                var content = await BuildStreamContentAsync(serverId, "mpegts");
+                return File(Encoding.UTF8.GetBytes(content), "audio/x-mpegurl", "lista.m3u");
+            }
+            catch (ArgumentException ex)
+            {
+                model.ErrorMessage = ex.Message;
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                model.ErrorMessage = $"No se pudo generar la lista: {ex.Message}";
+                return View(model);
+            }
         }
 
         [HttpGet]
@@ -369,11 +444,6 @@ namespace coreAPI.Controllers
         [HttpGet("stream")]
         public async Task<IActionResult> Stream(string? id, string? format = null)
         {
-            if (string.IsNullOrWhiteSpace(id) || !_serverMappings.TryGetValue(id, out var userIp))
-            {
-                return BadRequest("Parámetro 'id' requerido. Valores válidos: " + string.Join(", ", _serverMappings.Keys));
-            }
-
             var outputFormat = string.IsNullOrWhiteSpace(format)
                 ? "mpegts"
                 : format.Trim().ToLowerInvariant();
@@ -385,49 +455,59 @@ namespace coreAPI.Controllers
 
             try
             {
-                var customAcePath = _m3uOptions.Value.FilePath;
-                var vdata = await System.IO.File.ReadAllTextAsync(customAcePath, Encoding.UTF8);
-
-                // 5. Reemplazar acestream:// por la URL de salida solicitada
-                var aceStreamUrl = outputFormat == "hls"
-                    ? $"{userIp}/ace/manifest.m3u8?id="
-                    : $"{userIp}/ace/getstream?id=";
-                vdata = vdata.Replace("acestream://", aceStreamUrl);
-
-                // 6. Reemplazar URL del servidor de monitorización por userIp
-                vdata = vdata.Replace(MonitoringServerUrl, userIp);
-
-                // 7. Eliminar canales ELCANO (case insensitive) y la línea siguiente
-                var lines = vdata.Split('\n');
-                var filteredLines = new List<string>();
-                var skipNext = false;
-
-                foreach (var line in lines)
-                {
-                    if (skipNext)
-                    {
-                        skipNext = false;
-                        continue;
-                    }
-
-                    if (line.Contains("ELCANO", StringComparison.OrdinalIgnoreCase))
-                    {
-                        skipNext = true;
-                        continue;
-                    }
-
-                    filteredLines.Add(line);
-                }
-
-                vdata = string.Join('\n', filteredLines);
-
-                // 8. Devolver con content-type M3U
+                var vdata = await BuildStreamContentAsync(id, outputFormat);
                 return Content(vdata, "audio/x-mpegurl", Encoding.UTF8);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
                 return StatusCode(500, $"Error interno: {ex.Message}");
             }
+        }
+
+        private async Task<string> BuildStreamContentAsync(string? id, string outputFormat)
+        {
+            var serverMappings = _serverMappingService.LoadDictionary();
+            if (string.IsNullOrWhiteSpace(id) || !serverMappings.TryGetValue(id, out var userIp))
+            {
+                throw new ArgumentException(
+                    "Parámetro 'id' requerido. Valores válidos: " + string.Join(", ", serverMappings.Keys));
+            }
+
+            var customAcePath = _m3uOptions.Value.FilePath;
+            var vdata = await System.IO.File.ReadAllTextAsync(customAcePath, Encoding.UTF8);
+
+            var aceStreamUrl = outputFormat == "hls"
+                ? $"{userIp}/ace/manifest.m3u8?id="
+                : $"{userIp}/ace/getstream?id=";
+            vdata = vdata.Replace("acestream://", aceStreamUrl);
+            vdata = vdata.Replace(MonitoringServerUrl, userIp);
+
+            var lines = vdata.Split('\n');
+            var filteredLines = new List<string>();
+            var skipNext = false;
+
+            foreach (var line in lines)
+            {
+                if (skipNext)
+                {
+                    skipNext = false;
+                    continue;
+                }
+
+                if (line.Contains("ELCANO", StringComparison.OrdinalIgnoreCase))
+                {
+                    skipNext = true;
+                    continue;
+                }
+
+                filteredLines.Add(line);
+            }
+
+            return string.Join('\n', filteredLines);
         }
 
     }

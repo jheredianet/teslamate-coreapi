@@ -1,0 +1,30 @@
+﻿@model coreAPI.Models.M3UExportViewModel
+@{
+    ViewData["Title"] = "Exportar M3U";
+}
+
+<h2>Exportar M3U</h2>
+<p>Selecciona el servidor que se utilizará para generar las URLs de los canales.</p>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-warning">@Model.ErrorMessage</div>
+}
+
+<form asp-action="Download" method="post">
+    @Html.AntiForgeryToken()
+    <div class="mb-3">
+        <label for="serverId" class="form-label">Identificador del servidor</label>
+        <select id="serverId" name="serverId" class="form-select" required>
+            <option value="">Selecciona un servidor</option>
+            @foreach (var server in Model.Servers)
+            {
+                <option value="@server.Name" selected="@(server.Name == Model.SelectedServerId ? "selected" : null)">
+                    @server.Name (@server.BaseUrl)
+                </option>
+            }
+        </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Descargar</button>
+    <a class="btn btn-secondary" href="@Url.Action("Index")">Cancelar</a>
+</form>
