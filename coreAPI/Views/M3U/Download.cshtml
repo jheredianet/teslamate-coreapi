@@ -53,7 +53,9 @@
         const serverSelect = document.getElementById('serverId');
         const formatInputs = document.querySelectorAll('input[name="format"]');
         const streamLink = document.getElementById('stream-link');
-        const streamBaseUrl = '@Context.Request.Scheme://@Context.Request.Host';
+        // Usa el protocolo visible para el navegador. Detrás de un proxy HTTPS,
+        // el backend puede recibir internamente la petición como HTTP.
+        const streamBaseUrl = window.location.origin;
 
         function updateStreamLink() {
             const serverId = serverSelect.value;
