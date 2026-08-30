@@ -13,20 +13,29 @@ namespace coreAPI.Controllers
         private readonly ServerMappingService _serverMappingService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IOptions<M3UOptions> _m3uOptions;
-
-        private const string MonitoringServerUrl = "https://jchmip.infoinnova.net:444";
-        private static readonly Uri MonitoringServerUri = new(MonitoringServerUrl);
+        private readonly string _monitoringServerUrl;
+        private readonly Uri _monitoringServerUri;
 
         public M3UController(
             M3UService service,
             ServerMappingService serverMappingService,
             IHttpClientFactory httpClientFactory,
-            IOptions<M3UOptions> m3uOptions)
+            IOptions<M3UOptions> m3uOptions,
+            AppSettings appSettings)
         {
             _service = service;
             _serverMappingService = serverMappingService;
             _httpClientFactory = httpClientFactory;
             _m3uOptions = m3uOptions;
+            if (string.IsNullOrWhiteSpace(appSettings.MonitoringServerUrl))
+                throw new InvalidOperationException("La configuración Settings:MonitoringServerUrl está vacía.");
+
+            _monitoringServerUrl = appSettings.MonitoringServerUrl.Trim().TrimEnd('/');
+
+            if (!Uri.TryCreate(_monitoringServerUrl, UriKind.Absolute, out var monitoringServerUri))
+                throw new InvalidOperationException("Settings:MonitoringServerUrl debe ser una URL absoluta válida.");
+
+            _monitoringServerUri = monitoringServerUri;
         }
 
         public IActionResult Index(string? q, string? group)
@@ -271,7 +280,7 @@ namespace coreAPI.Controllers
                 client.Timeout = TimeSpan.FromSeconds(15);
 
                 var encodedContentId = Uri.EscapeDataString(contentId);
-                var sessionUrl = $"{MonitoringServerUrl}/ace/getstream?content_id={encodedContentId}&format=json";
+                var sessionUrl = $"{_monitoringServerUrl}/ace/getstream?content_id={encodedContentId}&format=json";
                 var playbackResponse = await client.GetStringAsync(sessionUrl);
                 model.PlaybackJson = PrettyJson(playbackResponse);
 
@@ -336,16 +345,16 @@ namespace coreAPI.Controllers
                    !string.Equals(status.GetString(), "idle", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string NormalizeMonitoringUrl(string url)
+        private string NormalizeMonitoringUrl(string url)
         {
             if (!Uri.TryCreate(url, UriKind.Absolute, out var returnedUri))
                 throw new InvalidOperationException("El motor devolvió una stat_url no válida.");
 
             var builder = new UriBuilder(returnedUri)
             {
-                Scheme = MonitoringServerUri.Scheme,
-                Host = MonitoringServerUri.Host,
-                Port = MonitoringServerUri.Port
+                Scheme = _monitoringServerUri.Scheme,
+                Host = _monitoringServerUri.Host,
+                Port = _monitoringServerUri.Port
             };
 
             return builder.Uri.ToString();
@@ -422,7 +431,7 @@ namespace coreAPI.Controllers
             {
                 var client = _httpClientFactory.CreateClient();
                 var searchQueryEncoded = Uri.EscapeDataString(model.SearchQuery);
-                var searchUrl = $"{MonitoringServerUrl}/search.m3u?query={searchQueryEncoded}";
+                var searchUrl = $"{_monitoringServerUrl}/search.m3u?query={searchQueryEncoded}";
                 var searchString = await client.GetStringAsync(searchUrl);
 
                 using var document = JsonDocument.Parse(searchString);
@@ -492,7 +501,7 @@ namespace coreAPI.Controllers
                     ? $"{userIp}/ace/manifest.m3u8?id="
                     : $"{userIp}/ace/getstream?id=";
                 vdata = vdata.Replace("acestream://", aceStreamUrl);
-                vdata = vdata.Replace(MonitoringServerUrl, userIp);
+                vdata = vdata.Replace(_monitoringServerUrl, userIp);
             }
 
             var lines = vdata.Split('\n');

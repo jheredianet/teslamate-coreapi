@@ -3,6 +3,7 @@
     public class AppSettings
     {
         public string ImportPath { get; set; } = string.Empty;
+        public string MonitoringServerUrl { get; set; } = string.Empty;
         public string CurrentPath { get; set; } = Directory.GetCurrentDirectory();
         public string sshServer { get; set; } = string.Empty;
         public int sshPort { get; set; } = 22;
