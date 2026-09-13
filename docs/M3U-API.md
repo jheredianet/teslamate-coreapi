@@ -156,13 +156,40 @@ Respuestas de error:
 
 ## Sincronización
 
-La sincronización está disponible actualmente desde la UI:
+La sincronización está disponible tanto desde la UI como mediante API REST.
+
+### API REST
+
+```http
+POST /api/m3u/synchronize
+```
+
+No requiere cuerpo ni parámetros. No requiere token antifalsificación.
+
+Respuesta `200 OK`:
+
+```json
+{
+  "added": 12,
+  "updated": 45,
+  "preserved": 3,
+  "duplicatesRemoved": 2
+}
+```
+
+Respuestas de error:
+
+- `422 Unprocessable Entity`: la fuente no contiene una lista válida o no contiene ids AceStream.
+- `502 Bad Gateway`: no se pudo consultar la fuente remota.
+- `504 Gateway Timeout`: la fuente no respondió en 30 segundos.
+
+### UI
 
 ```http
 POST /m3u/Synchronize
 ```
 
-Requiere el token antifalsificación generado por la vista, por lo que no es un endpoint REST pensado para consumo directo de otro agente.
+Requiere el token antifalsificación generado por la vista.
 
 La operación descarga la fuente principal, fusiona por id AceStream, actualiza los canales coincidentes, conserva los canales locales ausentes, elimina duplicados y guarda las URLs como `acestream://ID`.
 

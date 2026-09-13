@@ -9,10 +9,12 @@ namespace coreAPI.Controllers
     public class M3UApiController : ControllerBase
     {
         private readonly M3UService _service;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public M3UApiController(M3UService service)
+        public M3UApiController(M3UService service, IHttpClientFactory httpClientFactory)
         {
             _service = service;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpGet]
@@ -45,6 +47,32 @@ namespace coreAPI.Controllers
         {
             var entry = _service.LoadEntries().FirstOrDefault(e => e.Id == id);
             return entry == null ? NotFound() : Ok(entry);
+        }
+
+        [HttpPost("synchronize")]
+        public async Task<ActionResult<M3UService.SyncResult>> Synchronize(CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(30);
+                var result = await _service.SynchronizeAsync(client, cancellationToken);
+                return Ok(result);
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return StatusCode(StatusCodes.Status504GatewayTimeout,
+                    "La fuente M3U no respondió dentro del tiempo límite.");
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(StatusCodes.Status502BadGateway,
+                    $"No se pudo consultar la fuente M3U: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                return UnprocessableEntity(ex.Message);
+            }
         }
 
         [HttpPost]
