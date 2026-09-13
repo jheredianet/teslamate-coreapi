@@ -15,6 +15,7 @@ namespace coreAPI.Controllers
         private readonly IOptions<M3UOptions> _m3uOptions;
         private readonly string _monitoringServerUrl;
         private readonly Uri _monitoringServerUri;
+        private const string SyncSourceUrl = M3UService.DefaultSyncSourceUrl;
 
         public M3UController(
             M3UService service,
@@ -59,12 +60,32 @@ namespace coreAPI.Controllers
             ViewBag.Query = q;
             ViewBag.SelectedGroup = group;
 
-            return View(list.OrderBy(e => e.Order).ToList());
+            return View(list);
         }
 
         public IActionResult Create()
         {
             return View(new M3UEntry());
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Synchronize(CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(30);
+                var result = await _service.SynchronizeAsync(client, cancellationToken);
+
+                TempData["Message"] = $"Sincronización completada: {result.Added} añadidos, {result.Updated} actualizados, {result.Preserved} locales conservados y {result.DuplicatesRemoved} duplicados eliminados.";
+            }
+            catch (Exception ex) when (ex is HttpRequestException || ex is InvalidOperationException || ex is TaskCanceledException)
+            {
+                TempData["ErrorMessage"] = $"No se pudo sincronizar la lista desde {SyncSourceUrl}: {ex.Message}";
+            }
+
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -75,7 +96,6 @@ namespace coreAPI.Controllers
 
             var entries = _service.LoadEntries();
             entry.Id = 0;
-            entry.Order = entries.Count;
             entries.Add(entry);
             _service.SaveEntries(entries);
             return RedirectToAction(nameof(Index));
@@ -98,8 +118,6 @@ namespace coreAPI.Controllers
             var idx = entries.FindIndex(e => e.Id == updated.Id);
             if (idx < 0) return NotFound();
 
-            // Mantener Order
-            updated.Order = entries[idx].Order;
             entries[idx] = updated;
             _service.SaveEntries(entries);
             return RedirectToAction(nameof(Index));
@@ -113,65 +131,6 @@ namespace coreAPI.Controllers
             var removed = entries.RemoveAll(e => e.Id == id);
             if (removed > 0)
                 _service.SaveEntries(entries);
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult MoveUp(int id)
-        {
-            _service.MoveUp(id);
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult MoveDown(int id)
-        {
-            _service.MoveDown(id);
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult Reorder(List<int> orderedIds)
-        {
-            if (orderedIds.Count > 0)
-                _service.Reorder(orderedIds);
-
-            return Ok();
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult CleanDuplicates()
-        {
-            var entries = _service.LoadEntries();
-
-            // Normalizar valores por defecto
-            foreach (var e in entries)
-            {
-                if (string.IsNullOrWhiteSpace(e.GroupTitle))
-                    e.GroupTitle = "Otros";
-
-                if (string.IsNullOrWhiteSpace(e.TVGLogo))
-                    e.TVGLogo = "https://listaiptvtelevision.com/wp-content/uploads/m3u.png";
-            }
-
-            // Eliminar duplicados por StreamUrl (manteniendo el primero)
-            var cleaned = entries
-                .GroupBy(e => e.StreamUrl.Trim(), StringComparer.CurrentCulture)
-                .Select(g => g.First())
-                .OrderBy(e => e.Order)
-                .ToList();
-
-            // Consolidar la posición visible en un orden consecutivo antes de persistir.
-            for (var i = 0; i < cleaned.Count; i++)
-                cleaned[i].Order = i;
-
-            _service.SaveEntries(cleaned);
-
-            TempData["Message"] = "Lista depurada y consolidada: duplicados eliminados, orden conservado y valores por defecto aplicados.";
             return RedirectToAction(nameof(Index));
         }
 

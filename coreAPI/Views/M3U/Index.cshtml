@@ -13,6 +13,12 @@
         @TempData["Message"]
     </div>
 }
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">
+        @TempData["ErrorMessage"]
+    </div>
+}
 
 
 <form method="get" class="mb-3">
@@ -25,20 +31,24 @@
         }
     </select>
     <button type="submit">Filtrar</button>
-    <a href="@Url.Action("Index", "M3U")">Limpiar</a>
 </form>
 
-<p>
+<div class="mb-3 d-flex align-items-center gap-2">
     <a class="btn btn-primary" href="@Url.Action("Create")">Agregar nuevo</a>
     <a class="btn btn-primary" href="@Url.Action("Download")">Exportar M3U</a>
     <a class="btn btn-primary" href="@Url.Action("Search")">Buscar</a>
-</p>
+    <form asp-action="Synchronize" method="post" class="d-inline-block m-0">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn btn-success"
+                onclick="return confirm('¿Sincronizar la lista con la fuente principal? Los canales remotos reemplazarán los datos de los canales con el mismo id AceStream.');">
+            Sincronizar
+        </button>
+    </form>
+</div>
 
 <table id="m3u-list" class="table table-dark table-striped">
     <thead>
         <tr>
-            <th>Arrastrar</th>
-            <th>Orden</th>
             <th>Logo</th>
             <th>Canal</th>
             <th>Grupo</th>
@@ -47,11 +57,9 @@
         </tr>
     </thead>
     <tbody>
-        @foreach (var item in Model.OrderBy(e => e.Order))
+        @foreach (var item in Model)
         {
-            <tr draggable="true" data-entry-id="@item.Id">
-                <td class="drag-handle" title="Arrastrar para cambiar el orden">☷</td>
-                <td>@item.Order</td>
+            <tr>
                 <td>
                     @if (!string.IsNullOrWhiteSpace(item.TVGLogo))
                     {
@@ -76,16 +84,3 @@
         }
     </tbody>
 </table>
-
-<form id="m3u-reorder-form" asp-action="Reorder" method="post" class="d-none">
-    @Html.AntiForgeryToken()
-</form>
-<div id="m3u-reorder-status" class="mt-2" role="status"></div>
-
-<form asp-action="CleanDuplicates" method="post" style="display:inline">
-    @Html.AntiForgeryToken()
-    <button type="submit" class="btn btn-danger"
-            onclick="return confirm('¿Limpiar duplicados y consolidar la lista manteniendo el orden actual?');">
-        Limpiar duplicados y Consolidar lista
-    </button>
-</form>

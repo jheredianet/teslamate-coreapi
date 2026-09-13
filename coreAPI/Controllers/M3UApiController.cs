@@ -37,7 +37,7 @@ namespace coreAPI.Controllers
                     .ToList();
             }
 
-            return Ok(entries.OrderBy(e => e.Order));
+            return Ok(entries);
         }
 
         [HttpGet("{id:int}")]
@@ -52,7 +52,6 @@ namespace coreAPI.Controllers
         {
             var entries = _service.LoadEntries();
             entry.Id = 0;
-            entry.Order = entries.Count > 0 ? entries.Max(e => e.Order) + 1 : 0;
 
             entries.Add(entry);
             _service.SaveEntries(entries);
@@ -68,7 +67,6 @@ namespace coreAPI.Controllers
             if (index < 0) return NotFound();
 
             updated.Id = id;
-            updated.Order = entries[index].Order;
             entries[index] = updated;
             _service.SaveEntries(entries);
 
@@ -86,14 +84,5 @@ namespace coreAPI.Controllers
             return NoContent();
         }
 
-        [HttpPost("reorder")]
-        public IActionResult Reorder([FromBody] List<int> orderedIds)
-        {
-            if (orderedIds.Count == 0)
-                return BadRequest("Debe indicar al menos un identificador.");
-
-            _service.Reorder(orderedIds);
-            return NoContent();
-        }
     }
 }

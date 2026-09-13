@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
@@ -16,6 +17,10 @@ namespace coreAPI.Classes
         private static readonly Regex GroupRegex = new(@"group-title=""(.*?)""", RegexOptions.Compiled);
         private static readonly Regex LogoRegex = new(@"tvg-logo=""(.*?)""", RegexOptions.Compiled);
         private static readonly Regex TvgIdRegex = new(@"tvg-id=""(.*?)""", RegexOptions.Compiled);
+        private static readonly Regex AceStreamIdRegex = new(@"(?:^|[?&])id=([^&#]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex TrailingAsterisksRegex = new(@"\*{1,2}\s*$", RegexOptions.Compiled);
+        private static readonly NaturalStringComparer EntryNameComparer = new();
+        public const string DefaultSyncSourceUrl = "https://git.gay/TokyoGhoulles/AceStream_IDs/raw/branch/main/hashes.m3u";
 
         public M3UService(IOptions<M3UOptions> options)
         {
@@ -39,9 +44,8 @@ namespace coreAPI.Classes
                 using var connection = OpenConnection();
                 using var command = connection.CreateCommand();
                 command.CommandText = """
-                    SELECT id, group_title, tvg_logo, channel_name, stream_url, tvg_id, sort_order
+                    SELECT id, group_title, tvg_logo, channel_name, stream_url, tvg_id
                     FROM channels
-                    ORDER BY sort_order, id;
                     """;
 
                 using var reader = command.ExecuteReader();
@@ -55,12 +59,11 @@ namespace coreAPI.Classes
                         TVGLogo = reader.IsDBNull(2) ? null : reader.GetString(2),
                         ChannelName = reader.GetString(3),
                         StreamUrl = reader.GetString(4),
-                        TVGId = reader.IsDBNull(5) ? null : reader.GetString(5),
-                        Order = reader.GetInt32(6)
+                        TVGId = reader.IsDBNull(5) ? null : reader.GetString(5)
                     });
                 }
 
-                return entries;
+                return OrderEntries(entries);
             }
         }
 
@@ -68,7 +71,6 @@ namespace coreAPI.Classes
         {
             var lines = content.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
             var entries = new List<M3UEntry>();
-            var order = 0;
 
             for (var i = 0; i < lines.Length; i++)
             {
@@ -94,8 +96,7 @@ namespace coreAPI.Classes
                     TVGLogo = logo.Success ? logo.Groups[1].Value : null,
                     TVGId = tvgId.Success ? tvgId.Groups[1].Value : null,
                     ChannelName = namePartIndex >= 0 ? line[(namePartIndex + 1)..].Trim() : "Unknown",
-                    StreamUrl = url,
-                    Order = order++
+                    StreamUrl = url
                 });
             }
 
@@ -104,13 +105,17 @@ namespace coreAPI.Classes
 
         public void SaveEntries(List<M3UEntry> entries)
         {
+            SaveEntries(entries, null);
+        }
+
+        private void SaveEntries(List<M3UEntry> entries, string? header)
+        {
             lock (_fileLock)
             {
-                var ordered = entries.OrderBy(e => e.Order).ToList();
-                for (var i = 0; i < ordered.Count; i++)
-                    ordered[i].Order = i;
+                var ordered = OrderEntries(entries);
 
                 using var connection = OpenConnection();
+                var storedHeader = header ?? LoadPlaylistHeader(connection);
                 using var transaction = connection.BeginTransaction();
 
                 using (var delete = connection.CreateCommand())
@@ -123,59 +128,139 @@ namespace coreAPI.Classes
                 foreach (var entry in ordered)
                     InsertEntry(connection, transaction, entry);
 
+                if (header is not null)
+                    SavePlaylistHeader(connection, transaction, header);
+
                 transaction.Commit();
 
                 CreateBackup();
-                WriteM3uFile(ordered);
+                WriteM3uFile(ordered, storedHeader);
             }
         }
 
-        public void MoveUp(int id)
+        public async Task<SyncResult> SynchronizeAsync(HttpClient client, CancellationToken cancellationToken = default)
         {
-            var entries = LoadEntries();
-            var index = entries.FindIndex(x => x.Id == id);
-            if (index > 0)
+            using var request = new HttpRequestMessage(HttpMethod.Get, DefaultSyncSourceUrl);
+            request.Headers.UserAgent.ParseAdd("coreAPI-M3U-Synchronizer/1.0");
+            request.Headers.Accept.ParseAdd("audio/x-mpegurl");
+
+            using var response = await client.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var remoteEntries = ParseEntries(content);
+            var remoteById = remoteEntries
+                .Select(entry => (Entry: entry, Id: ExtractAceStreamId(entry.StreamUrl)))
+                .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+                .GroupBy(item => item.Id!, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToDictionary(item => item.Id!, item => item.Entry, StringComparer.OrdinalIgnoreCase);
+
+            if (remoteById.Count == 0)
+                throw new InvalidOperationException("La fuente remota no contiene canales AceStream válidos.");
+
+            var localEntries = LoadEntries();
+            var localById = localEntries
+                .Select(entry => (Entry: entry, Id: ExtractAceStreamId(entry.StreamUrl)))
+                .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+                .GroupBy(item => item.Id!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().Entry, StringComparer.OrdinalIgnoreCase);
+            var localEntriesWithId = localEntries.Count(entry => !string.IsNullOrWhiteSpace(ExtractAceStreamId(entry.StreamUrl)));
+
+            var merged = new List<M3UEntry>();
+            var updated = 0;
+            var added = 0;
+
+            foreach (var (id, remoteEntry) in remoteById)
             {
-                (entries[index - 1].Order, entries[index].Order) =
-                    (entries[index].Order, entries[index - 1].Order);
-                SaveEntries(entries);
-            }
-        }
+                remoteEntry.StreamUrl = $"acestream://{id}";
+                remoteEntry.ChannelName = TrailingAsterisksRegex
+                    .Replace(remoteEntry.ChannelName ?? "", "")
+                    .Trim();
+                remoteEntry.ChannelName = ToProperCase(remoteEntry.ChannelName);
+                remoteEntry.GroupTitle = ToProperCase(remoteEntry.GroupTitle);
 
-        public void MoveDown(int id)
-        {
-            var entries = LoadEntries();
-            var index = entries.FindIndex(x => x.Id == id);
-            if (index >= 0 && index < entries.Count - 1)
+                if (localById.TryGetValue(id, out var localEntry))
+                {
+                    remoteEntry.Id = localEntry.Id;
+                    updated++;
+                }
+                else
+                {
+                    remoteEntry.Id = 0;
+                    added++;
+                }
+
+                merged.Add(remoteEntry);
+            }
+
+            var preserved = 0;
+            foreach (var localEntry in localEntries)
             {
-                (entries[index + 1].Order, entries[index].Order) =
-                    (entries[index].Order, entries[index + 1].Order);
-                SaveEntries(entries);
+                var localId = ExtractAceStreamId(localEntry.StreamUrl);
+                if (!string.IsNullOrWhiteSpace(localId))
+                {
+                    if (remoteById.ContainsKey(localId))
+                        continue;
+
+                    if (localById[localId] != localEntry)
+                        continue;
+                }
+
+                merged.Add(localEntry);
+                preserved++;
             }
+
+            var duplicatesRemoved = (remoteEntries.Count - remoteById.Count) +
+                                    (localEntriesWithId - localById.Count);
+            SaveEntries(merged, ExtractPlaylistHeader(content));
+
+            return new SyncResult(added, updated, preserved, Math.Max(0, duplicatesRemoved));
         }
 
-        public void Reorder(IReadOnlyList<int> orderedIds)
+        private static string? ExtractAceStreamId(string? streamUrl)
         {
-            var entries = LoadEntries();
-            var entriesById = entries.ToDictionary(e => e.Id);
-            var positions = entries
-                .Select((entry, index) => new { entry.Id, index })
-                .Where(x => orderedIds.Contains(x.Id))
-                .Select(x => x.index)
+            if (string.IsNullOrWhiteSpace(streamUrl))
+                return null;
+
+            var value = streamUrl.Trim();
+            const string aceStreamPrefix = "acestream://";
+            if (value.StartsWith(aceStreamPrefix, StringComparison.OrdinalIgnoreCase))
+                return value[aceStreamPrefix.Length..].Trim();
+
+            var match = AceStreamIdRegex.Match(value);
+            return match.Success ? Uri.UnescapeDataString(match.Groups[1].Value).Trim() : null;
+        }
+
+        private static string ToProperCase(string? value)
+        {
+            var normalized = Regex.Replace(value?.Trim() ?? "", @"\s+", " ");
+            return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(normalized.ToLower(CultureInfo.CurrentCulture));
+        }
+
+        private static string ExtractPlaylistHeader(string content)
+        {
+            var lines = content.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            var firstEntry = Array.FindIndex(lines, line =>
+                line.TrimStart().StartsWith("#EXTINF", StringComparison.OrdinalIgnoreCase));
+
+            if (firstEntry < 0)
+                throw new InvalidOperationException("La fuente remota no contiene una cabecera M3U válida.");
+
+            var header = string.Join("\n", lines.Take(firstEntry)).TrimEnd();
+            if (!header.StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("La fuente remota no comienza con #EXTM3U.");
+
+            return header;
+        }
+
+        private static List<M3UEntry> OrderEntries(IEnumerable<M3UEntry> entries)
+        {
+            return entries
+                .OrderBy(e => e.GroupTitle ?? "", EntryNameComparer)
+                .ThenBy(e => e.ChannelName ?? "", EntryNameComparer)
+                .ThenBy(e => e.Id)
                 .ToList();
-
-            var reorderedEntries = orderedIds
-                .Where(entriesById.ContainsKey)
-                .Select(id => entriesById[id])
-                .ToList();
-
-            for (var i = 0; i < positions.Count && i < reorderedEntries.Count; i++)
-                entries[positions[i]] = reorderedEntries[i];
-
-            for (var i = 0; i < entries.Count; i++)
-                entries[i].Order = i;
-
-            SaveEntries(entries);
         }
 
         private void InitializeDatabase()
@@ -190,12 +275,27 @@ namespace coreAPI.Classes
                         tvg_logo TEXT NULL,
                         channel_name TEXT NOT NULL,
                         stream_url TEXT NOT NULL,
-                        tvg_id TEXT NULL,
-                        sort_order INTEGER NOT NULL
+                        tvg_id TEXT NULL
                     );
                     """;
                 schema.ExecuteNonQuery();
             }
+
+            using (var metadata = connection.CreateCommand())
+            {
+                metadata.CommandText = """
+                    CREATE TABLE IF NOT EXISTS playlist_metadata (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        header TEXT NOT NULL
+                    );
+                    INSERT INTO playlist_metadata (id, header)
+                    SELECT 1, '#EXTM3U'
+                    WHERE NOT EXISTS (SELECT 1 FROM playlist_metadata WHERE id = 1);
+                    """;
+                metadata.ExecuteNonQuery();
+            }
+
+            MigrateSortOrderColumn(connection);
 
             using var count = connection.CreateCommand();
             count.CommandText = "SELECT COUNT(*) FROM channels;";
@@ -207,9 +307,51 @@ namespace coreAPI.Classes
             if (importedEntries.Count == 0)
                 return;
 
+            importedEntries = OrderEntries(importedEntries);
+
             using var transaction = connection.BeginTransaction();
             foreach (var entry in importedEntries)
                 InsertEntry(connection, transaction, entry);
+            transaction.Commit();
+        }
+
+        private static void MigrateSortOrderColumn(SqliteConnection connection)
+        {
+            using var columns = connection.CreateCommand();
+            columns.CommandText = "PRAGMA table_info(channels);";
+            using var reader = columns.ExecuteReader();
+            var hasSortOrder = false;
+            while (reader.Read())
+            {
+                if (string.Equals(reader.GetString(1), "sort_order", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasSortOrder = true;
+                    break;
+                }
+            }
+            reader.Dispose();
+
+            if (!hasSortOrder)
+                return;
+
+            using var transaction = connection.BeginTransaction();
+            using var migrate = connection.CreateCommand();
+            migrate.Transaction = transaction;
+            migrate.CommandText = """
+                CREATE TABLE channels_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    group_title TEXT NOT NULL,
+                    tvg_logo TEXT NULL,
+                    channel_name TEXT NOT NULL,
+                    stream_url TEXT NOT NULL,
+                    tvg_id TEXT NULL
+                );
+                INSERT INTO channels_new (id, group_title, tvg_logo, channel_name, stream_url, tvg_id)
+                    SELECT id, group_title, tvg_logo, channel_name, stream_url, tvg_id FROM channels;
+                DROP TABLE channels;
+                ALTER TABLE channels_new RENAME TO channels;
+                """;
+            migrate.ExecuteNonQuery();
             transaction.Commit();
         }
 
@@ -220,18 +362,41 @@ namespace coreAPI.Classes
             return connection;
         }
 
+        private static string LoadPlaylistHeader(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT header FROM playlist_metadata WHERE id = 1;";
+            return command.ExecuteScalar() as string ?? "#EXTM3U";
+        }
+
+        private static void SavePlaylistHeader(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            string header)
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO playlist_metadata (id, header)
+                VALUES (1, $header)
+                ON CONFLICT(id) DO UPDATE SET header = excluded.header;
+                """;
+            command.Parameters.AddWithValue("$header", header);
+            command.ExecuteNonQuery();
+        }
+
         private static void InsertEntry(SqliteConnection connection, SqliteTransaction transaction, M3UEntry entry)
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = entry.Id > 0
                 ? """
-                  INSERT INTO channels (id, group_title, tvg_logo, channel_name, stream_url, tvg_id, sort_order)
-                  VALUES ($id, $group_title, $tvg_logo, $channel_name, $stream_url, $tvg_id, $sort_order);
+                  INSERT INTO channels (id, group_title, tvg_logo, channel_name, stream_url, tvg_id)
+                  VALUES ($id, $group_title, $tvg_logo, $channel_name, $stream_url, $tvg_id);
                   """
                 : """
-                  INSERT INTO channels (group_title, tvg_logo, channel_name, stream_url, tvg_id, sort_order)
-                  VALUES ($group_title, $tvg_logo, $channel_name, $stream_url, $tvg_id, $sort_order);
+                  INSERT INTO channels (group_title, tvg_logo, channel_name, stream_url, tvg_id)
+                  VALUES ($group_title, $tvg_logo, $channel_name, $stream_url, $tvg_id);
                   SELECT last_insert_rowid();
                   """;
 
@@ -240,8 +405,6 @@ namespace coreAPI.Classes
             command.Parameters.AddWithValue("$channel_name", entry.ChannelName ?? "Unknown");
             command.Parameters.AddWithValue("$stream_url", entry.StreamUrl ?? "");
             command.Parameters.AddWithValue("$tvg_id", (object?)entry.TVGId ?? DBNull.Value);
-            command.Parameters.AddWithValue("$sort_order", entry.Order);
-
             if (entry.Id > 0)
             {
                 command.Parameters.AddWithValue("$id", entry.Id);
@@ -253,10 +416,11 @@ namespace coreAPI.Classes
             }
         }
 
-        private void WriteM3uFile(List<M3UEntry> ordered)
+        private void WriteM3uFile(List<M3UEntry> ordered, string header)
         {
             var builder = new StringBuilder();
-            builder.AppendLine("#EXTM3U");
+            builder.AppendLine(header.TrimEnd('\r', '\n'));
+            builder.AppendLine();
             foreach (var entry in ordered)
             {
                 var logo = string.IsNullOrWhiteSpace(entry.TVGLogo) ? "" : $" tvg-logo=\"{entry.TVGLogo}\"";
@@ -294,5 +458,56 @@ namespace coreAPI.Classes
                     File.Delete(old);
             }
         }
+
+        private sealed class NaturalStringComparer : IComparer<string>
+        {
+            private static readonly Regex PartsRegex = new(@"(\d+)", RegexOptions.Compiled);
+            private readonly CompareInfo _compareInfo = CultureInfo.CurrentCulture.CompareInfo;
+
+            public int Compare(string? left, string? right)
+            {
+                if (ReferenceEquals(left, right)) return 0;
+                if (left is null) return -1;
+                if (right is null) return 1;
+
+                var leftParts = PartsRegex.Split(left.Trim());
+                var rightParts = PartsRegex.Split(right.Trim());
+                var count = Math.Min(leftParts.Length, rightParts.Length);
+
+                for (var i = 0; i < count; i++)
+                {
+                    var leftPart = leftParts[i];
+                    var rightPart = rightParts[i];
+                    var leftIsNumber = long.TryParse(leftPart, out _);
+                    var rightIsNumber = long.TryParse(rightPart, out _);
+
+                    int comparison;
+                    if (leftIsNumber && rightIsNumber)
+                    {
+                        var leftNumber = leftPart.TrimStart('0');
+                        var rightNumber = rightPart.TrimStart('0');
+                        leftNumber = leftNumber.Length == 0 ? "0" : leftNumber;
+                        rightNumber = rightNumber.Length == 0 ? "0" : rightNumber;
+
+                        comparison = leftNumber.Length != rightNumber.Length
+                            ? leftNumber.Length.CompareTo(rightNumber.Length)
+                            : StringComparer.Ordinal.Compare(leftNumber, rightNumber);
+                    }
+                    else
+                    {
+                        comparison = _compareInfo.Compare(
+                            leftPart,
+                            rightPart,
+                            CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace);
+                    }
+
+                    if (comparison != 0) return comparison;
+                }
+
+                return leftParts.Length.CompareTo(rightParts.Length);
+            }
+        }
+
+        public sealed record SyncResult(int Added, int Updated, int Preserved, int DuplicatesRemoved);
     }
 }
