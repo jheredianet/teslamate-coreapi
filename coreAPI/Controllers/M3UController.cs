@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using coreAPI.Classes;
 using coreAPI.Models;
-using System.Net;
 using System.Text;
 using System.Text.Json;
 
@@ -10,43 +9,30 @@ namespace coreAPI.Controllers
     public class M3UController : Controller
     {
         private readonly M3UService _service;
+        private readonly ServerMappingService _serverMappingService;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IWebHostEnvironment _env;
-        private Dictionary<string, string> _serverMappings;
-        private readonly string _userIdPath;
+        private readonly string _monitoringServerUrl;
+        private readonly Uri _monitoringServerUri;
+        private const string SyncSourceUrl = M3UService.DefaultSyncSourceUrl;
 
-        private const string MonitoringServerUrl = "https://jchmip.infoinnova.net:444";
-
-        public M3UController(M3UService service, IHttpClientFactory httpClientFactory, IWebHostEnvironment env)
+        public M3UController(
+            M3UService service,
+            ServerMappingService serverMappingService,
+            IHttpClientFactory httpClientFactory,
+            AppSettings appSettings)
         {
             _service = service;
+            _serverMappingService = serverMappingService;
             _httpClientFactory = httpClientFactory;
-            _env = env;
-            _userIdPath = Path.Combine(env.ContentRootPath, "import", "userid.json");
-            _serverMappings = LoadServerMappings();
-        }
+            if (string.IsNullOrWhiteSpace(appSettings.MonitoringServerUrl))
+                throw new InvalidOperationException("La configuración Settings:MonitoringServerUrl está vacía.");
 
-        private Dictionary<string, string> LoadServerMappings()
-        {
-            if (!System.IO.File.Exists(_userIdPath))
-            {
-                return new Dictionary<string, string>();
-            }
+            _monitoringServerUrl = appSettings.MonitoringServerUrl.Trim().TrimEnd('/');
 
-            try
-            {
-                var json = System.IO.File.ReadAllText(_userIdPath, Encoding.UTF8);
-                return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
-            }
-            catch
-            {
-                return new Dictionary<string, string>();
-            }
-        }
+            if (!Uri.TryCreate(_monitoringServerUrl, UriKind.Absolute, out var monitoringServerUri))
+                throw new InvalidOperationException("Settings:MonitoringServerUrl debe ser una URL absoluta válida.");
 
-        public void ReloadServerMappings()
-        {
-            _serverMappings = LoadServerMappings();
+            _monitoringServerUri = monitoringServerUri;
         }
 
         public IActionResult Index(string? q, string? group)
@@ -70,7 +56,7 @@ namespace coreAPI.Controllers
             ViewBag.Query = q;
             ViewBag.SelectedGroup = group;
 
-            return View(list.OrderBy(e => e.Order).ToList());
+            return View(list);
         }
 
         public IActionResult Create()
@@ -80,13 +66,32 @@ namespace coreAPI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Synchronize(CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(30);
+                var result = await _service.SynchronizeAsync(client, cancellationToken);
+
+                TempData["Message"] = $"Sincronización completada: {result.Added} añadidos, {result.Updated} actualizados, {result.Preserved} locales conservados y {result.DuplicatesRemoved} duplicados eliminados.";
+            }
+            catch (Exception ex) when (ex is HttpRequestException || ex is InvalidOperationException || ex is TaskCanceledException)
+            {
+                TempData["ErrorMessage"] = $"No se pudo sincronizar la lista desde {SyncSourceUrl}: {ex.Message}";
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult Create(M3UEntry entry)
         {
             if (!ModelState.IsValid) return View(entry);
 
             var entries = _service.LoadEntries();
-            entry.Id = entries.Count;
-            entry.Order = entries.Count;
+            entry.Id = 0;
             entries.Add(entry);
             _service.SaveEntries(entries);
             return RedirectToAction(nameof(Index));
@@ -109,8 +114,6 @@ namespace coreAPI.Controllers
             var idx = entries.FindIndex(e => e.Id == updated.Id);
             if (idx < 0) return NotFound();
 
-            // Mantener Order
-            updated.Order = entries[idx].Order;
             entries[idx] = updated;
             _service.SaveEntries(entries);
             return RedirectToAction(nameof(Index));
@@ -127,255 +130,234 @@ namespace coreAPI.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult MoveUp(int id)
+        [HttpGet]
+        public IActionResult Servers()
         {
-            _service.MoveUp(id);
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult MoveDown(int id)
-        {
-            _service.MoveDown(id);
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult CleanDuplicates()
-        {
-            var entries = _service.LoadEntries();
-
-            // Normalizar valores por defecto
-            foreach (var e in entries)
-            {
-                if (string.IsNullOrWhiteSpace(e.GroupTitle))
-                    e.GroupTitle = "Otros";
-
-                if (string.IsNullOrWhiteSpace(e.TVGLogo))
-                    e.TVGLogo = "https://listaiptvtelevision.com/wp-content/uploads/m3u.png";
-            }
-
-            // Eliminar duplicados por StreamUrl (manteniendo el primero)
-            var cleaned = entries
-                .GroupBy(e => e.StreamUrl.Trim(), StringComparer.CurrentCulture)
-                .Select(g => g.First())
-                .OrderBy(e => e.Order)
-                .ToList();
-
-            _service.SaveEntries(cleaned);
-
-            TempData["Message"] = "Lista depurada: duplicados eliminados y valores por defecto aplicados.";
-            return RedirectToAction(nameof(Index));
+            return View(_serverMappingService.LoadAll());
         }
 
         [HttpGet]
-        public async Task<IActionResult> ValidateChannels()
+        public IActionResult CreateServer()
         {
-            var entries = _service.LoadEntries();
-            var model = new M3UValidationViewModel();
-            using var semaphore = new SemaphoreSlim(5);
-
-            var validations = entries.Select(async entry =>
-            {
-                await semaphore.WaitAsync();
-                try
-                {
-                    return await ValidateChannelAsync(entry);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-
-            model.Results = (await Task.WhenAll(validations))
-                .OrderBy(r => r.Id)
-                .ToList();
-
-            return View(model);
+            return View(new ServerMapping());
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult DeleteValidated(List<int> selectedIds)
+        public IActionResult CreateServer(ServerMapping mapping)
         {
-            if (selectedIds.Count == 0)
+            if (!ModelState.IsValid)
+                return View(mapping);
+
+            try
             {
-                TempData["Message"] = "No se seleccionaron canales para eliminar.";
-                return RedirectToAction(nameof(ValidateChannels));
+                _serverMappingService.Create(mapping);
+                TempData["Message"] = "Servidor guardado correctamente.";
+                return RedirectToAction(nameof(Servers));
             }
-
-            var entries = _service.LoadEntries();
-            var selected = selectedIds.ToHashSet();
-            var remaining = entries.Where(e => !selected.Contains(e.Id)).ToList();
-            var deletedCount = entries.Count - remaining.Count;
-
-            _service.SaveEntries(remaining);
-            TempData["Message"] = $"Se eliminaron {deletedCount} canales.";
-            return RedirectToAction(nameof(Index));
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(nameof(ServerMapping.Name), ex.Message);
+                return View(mapping);
+            }
         }
 
-        private async Task<M3UValidationResult> ValidateChannelAsync(M3UEntry entry)
+        [HttpGet]
+        public IActionResult EditServer(int id)
         {
-            var result = new M3UValidationResult
+            var mapping = _serverMappingService.GetById(id);
+            return mapping == null ? NotFound() : View(mapping);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult EditServer(ServerMapping mapping)
+        {
+            if (!ModelState.IsValid)
+                return View(mapping);
+
+            try
             {
-                Id = entry.Id,
-                ChannelName = entry.ChannelName,
-                StreamUrl = entry.StreamUrl
+                if (!_serverMappingService.Update(mapping))
+                    return NotFound();
+
+                TempData["Message"] = "Servidor actualizado correctamente.";
+                return RedirectToAction(nameof(Servers));
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(nameof(ServerMapping.Name), ex.Message);
+                return View(mapping);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult DeleteServer(int id)
+        {
+            if (_serverMappingService.Delete(id))
+                TempData["Message"] = "Servidor eliminado correctamente.";
+            else
+                TempData["Message"] = "El servidor no existe.";
+
+            return RedirectToAction(nameof(Servers));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Info(int id)
+        {
+            var entry = _service.LoadEntries().FirstOrDefault(e => e.Id == id);
+            if (entry == null)
+                return NotFound();
+
+            var model = new M3UInfoViewModel
+            {
+                Entry = entry
             };
+
+            const string aceStreamPrefix = "acestream://";
+            if (!entry.StreamUrl.StartsWith(aceStreamPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                model.ErrorMessage = "La información detallada solo está disponible para canales acestream://.";
+                return View(model);
+            }
+
+            var contentId = entry.StreamUrl[aceStreamPrefix.Length..].Trim();
+            if (string.IsNullOrWhiteSpace(contentId))
+            {
+                model.ErrorMessage = "El canal no contiene un content_id válido.";
+                return View(model);
+            }
 
             try
             {
                 using var client = _httpClientFactory.CreateClient();
-                client.Timeout = TimeSpan.FromSeconds(8);
+                client.Timeout = TimeSpan.FromSeconds(15);
 
-                if (TryGetAceIdentifier(entry.StreamUrl, out var parameterName, out var identifier))
+                var encodedContentId = Uri.EscapeDataString(contentId);
+                var sessionUrl = $"{_monitoringServerUrl}/ace/getstream?content_id={encodedContentId}&format=json";
+                var playbackResponse = await client.GetStringAsync(sessionUrl);
+                model.PlaybackJson = PrettyJson(playbackResponse);
+
+                using var playbackDocument = JsonDocument.Parse(playbackResponse);
+                if (playbackDocument.RootElement.TryGetProperty("response", out var response))
                 {
-                    var apiUrl = $"{MonitoringServerUrl}/server/api?api_version=3&method=get_media_files&{parameterName}={Uri.EscapeDataString(identifier)}";
-                    using var response = await client.GetAsync(apiUrl);
-                    var body = await response.Content.ReadAsStringAsync();
+                    var statUrl = response.TryGetProperty("stat_url", out var statUrlElement) &&
+                                  statUrlElement.ValueKind == JsonValueKind.String
+                        ? statUrlElement.GetString()
+                        : null;
 
-                    if (response.IsSuccessStatusCode &&
-                        TryGetApiResult(body, out var apiResult))
+                    if (!string.IsNullOrWhiteSpace(statUrl))
                     {
-                        var name = GetJsonString(apiResult, "name");
-                        var type = GetJsonString(apiResult, "type");
-                        result.Status = "Online";
-                        result.Details = string.IsNullOrWhiteSpace(name)
-                            ? $"Ace Stream disponible{FormatType(type)}"
-                            : $"{name}{FormatType(type)}";
-                        return result;
-                    }
+                        // Algunos motores devuelven stat_url en HTTP aunque la URL
+                        // pública del servicio esté configurada con HTTPS.
+                        var normalizedStatUrl = NormalizeMonitoringUrl(statUrl);
 
-                    result.Status = "Offline";
-                    result.Details = "Ace Stream no disponible o sin metadatos.";
-                    result.SuggestDelete = true;
-                    return result;
+                        // Esperar unos segundos da tiempo a que aparezcan peers y
+                        // velocidad de descarga en la sesión.
+                        for (var attempt = 0; attempt < 5; attempt++)
+                        {
+                            var statsResponse = await client.GetStringAsync(normalizedStatUrl);
+                            model.StatsJson = PrettyJson(statsResponse);
+
+                            using var statsDocument = JsonDocument.Parse(statsResponse);
+                            if (HasActivePeerStats(statsDocument.RootElement) || attempt == 4)
+                                break;
+
+                            await Task.Delay(TimeSpan.FromSeconds(1));
+                        }
+                    }
                 }
-
-                if (Uri.TryCreate(entry.StreamUrl, UriKind.Absolute, out var uri) &&
-                    (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
-                     uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
-                {
-                    using var request = new HttpRequestMessage(HttpMethod.Head, uri);
-                    using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-
-                    if (response.StatusCode == HttpStatusCode.MethodNotAllowed)
-                    {
-                        using var fallback = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
-                        result.Status = IsSuccessful(fallback.StatusCode) ? "Online" : "Offline";
-                        result.Details = $"HTTP {(int)fallback.StatusCode}";
-                    }
-                    else
-                    {
-                        result.Status = IsSuccessful(response.StatusCode) ? "Online" : "Offline";
-                        result.Details = $"HTTP {(int)response.StatusCode}";
-                    }
-
-                    result.SuggestDelete = result.Status == "Offline";
-                    return result;
-                }
-
-                result.Status = "No verificable";
-                result.Details = "Protocolo no soportado.";
-                return result;
             }
-            catch (TaskCanceledException)
+            catch (Exception ex) when (ex is HttpRequestException || ex is InvalidOperationException || ex is JsonException || ex is TaskCanceledException)
             {
-                result.Status = "Offline";
-                result.Details = "Tiempo de espera agotado.";
-                result.SuggestDelete = true;
-                return result;
+                model.ErrorMessage = $"No se pudo obtener la información del canal: {ex.Message}";
             }
-            catch (HttpRequestException ex)
-            {
-                result.Status = "No verificable";
-                result.Details = ex.Message;
-                return result;
-            }
-            catch (JsonException)
-            {
-                result.Status = "No verificable";
-                result.Details = "Respuesta inválida del servidor.";
-                return result;
-            }
+
+            return View(model);
         }
 
-        private static bool TryGetAceIdentifier(string? streamUrl, out string parameterName, out string identifier)
+        private static string PrettyJson(string json)
         {
-            parameterName = string.Empty;
-            identifier = string.Empty;
-
-            if (string.IsNullOrWhiteSpace(streamUrl)) return false;
-            var value = streamUrl.Trim();
-
-            if (value.StartsWith("acestream://", StringComparison.OrdinalIgnoreCase))
+            using var document = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions
             {
-                parameterName = "content_id";
-                identifier = value["acestream://".Length..].Trim();
-                return !string.IsNullOrWhiteSpace(identifier);
-            }
+                WriteIndented = true
+            });
+        }
 
-            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
-            if (!uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
-                !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return false;
+        private static bool HasActivePeerStats(JsonElement root)
+        {
+            if (!root.TryGetProperty("response", out var response))
+                return false;
 
-            var infohash = GetQueryParameter(uri.Query.TrimStart('?'), "infohash");
-            if (!string.IsNullOrWhiteSpace(infohash))
-            {
-                parameterName = "infohash";
-                identifier = infohash;
+            if (response.TryGetProperty("peers", out var peers) &&
+                peers.ValueKind == JsonValueKind.Number)
                 return true;
-            }
 
-            return false;
+            return response.TryGetProperty("status", out var status) &&
+                   status.ValueKind == JsonValueKind.String &&
+                   !string.Equals(status.GetString(), "idle", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool TryGetApiResult(string body, out JsonElement result)
+        private string NormalizeMonitoringUrl(string url)
         {
-            using var json = JsonDocument.Parse(body);
-            if (json.RootElement.TryGetProperty("result", out result) && result.ValueKind == JsonValueKind.Object)
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var returnedUri))
+                throw new InvalidOperationException("El motor devolvió una stat_url no válida.");
+
+            var builder = new UriBuilder(returnedUri)
             {
-                result = result.Clone();
-                return true;
-            }
+                Scheme = _monitoringServerUri.Scheme,
+                Host = _monitoringServerUri.Host,
+                Port = _monitoringServerUri.Port
+            };
 
-            result = default;
-            return false;
-        }
-
-        private static string? GetJsonString(JsonElement element, string propertyName)
-        {
-            return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
-                ? value.GetString()
-                : null;
-        }
-
-        private static string FormatType(string? type)
-        {
-            return string.IsNullOrWhiteSpace(type) ? string.Empty : $" ({type})";
-        }
-
-        private static bool IsSuccessful(HttpStatusCode statusCode)
-        {
-            return (int)statusCode >= 200 && (int)statusCode < 400;
+            return builder.Uri.ToString();
         }
 
 
-        // Export rápido (por si quieres descargar la lista)
+        [HttpGet]
         public IActionResult Download()
         {
-            var bytes = System.IO.File.ReadAllBytes(HttpContext.RequestServices
-                .GetRequiredService<Microsoft.Extensions.Options.IOptions<M3UOptions>>().Value.FilePath);
-            return File(bytes, "application/x-mpegURL", "lista.m3u");
+            return View(new M3UExportViewModel
+            {
+                Servers = _serverMappingService.LoadAll()
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult Download(string serverId)
+        {
+            var model = new M3UExportViewModel
+            {
+                Servers = _serverMappingService.LoadAll(),
+                SelectedServerId = serverId,
+                Format = Request.Form["format"].ToString().ToLowerInvariant()
+            };
+
+            if (model.Format is not "mpegts" and not "hls")
+                model.Format = "mpegts";
+
+            try
+            {
+                var content = BuildStreamContent(serverId, model.Format);
+                return File(Encoding.UTF8.GetBytes(content), "audio/x-mpegurl", "lista.m3u");
+            }
+            catch (ArgumentException ex)
+            {
+                model.ErrorMessage = ex.Message;
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                model.ErrorMessage = $"No se pudo generar la lista: {ex.Message}";
+                return View(model);
+            }
         }
 
         [HttpGet]
-        public IActionResult Import()
+        public IActionResult Search()
         {
             return View(new M3USearchViewModel());
         }
@@ -389,261 +371,112 @@ namespace coreAPI.Controllers
                 SearchQuery = searchQuery?.Trim() ?? string.Empty
             };
 
-            if (string.IsNullOrWhiteSpace(model.SearchQuery))
+            var terms = model.SearchQuery
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (terms.Length == 0)
             {
-                model.ErrorMessage = "Introduce un texto para buscar.";
-                return View("Import", model);
+                model.ErrorMessage = "Introduce al menos un término de búsqueda. Puedes separar varios términos con comas.";
+                return View(model);
             }
+
+            model.SearchQuery = string.Join(" OR ", terms);
 
             try
             {
                 var client = _httpClientFactory.CreateClient();
                 var searchQueryEncoded = Uri.EscapeDataString(model.SearchQuery);
-                var searchUrl = $"{MonitoringServerUrl}/search.m3u?query={searchQueryEncoded}";
+                var searchUrl = $"{_monitoringServerUrl}/search.m3u?query={searchQueryEncoded}";
                 var searchString = await client.GetStringAsync(searchUrl);
-                var searchResults = _service.ParseEntries(searchString);
-                model.Results = await ConvertInfohashesToContentIdsAsync(client, searchResults);
 
-                if (model.Results.Count == 0)
-                    model.ErrorMessage = "La búsqueda no ha devuelto canales válidos en formato M3U.";
+                using var document = JsonDocument.Parse(searchString);
+                model.RawJson = JsonSerializer.Serialize(
+                    document.RootElement,
+                    new JsonSerializerOptions { WriteIndented = true });
             }
             catch (Exception ex) when (ex is HttpRequestException || ex is InvalidOperationException || ex is JsonException)
             {
-                model.ErrorMessage = $"Error al conectar con el servidor de monitorización: {ex.Message}";
+                model.ErrorMessage = $"Error al realizar la búsqueda: {ex.Message}";
             }
 
-            return View("Import", model);
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult Import(M3USearchViewModel model)
-        {
-            if (model.Results.Count == 0)
-            {
-                TempData["Message"] = "No hay resultados para importar.";
-                return RedirectToAction(nameof(Import));
-            }
-
-            var entries = _service.LoadEntries();
-            var nextOrder = entries.Count > 0 ? entries.Max(e => e.Order) + 1 : 0;
-
-            foreach (var result in model.Results)
-            {
-                if (string.IsNullOrWhiteSpace(result.StreamUrl)) continue;
-
-                entries.Add(new M3UEntry
-                {
-                    GroupTitle = string.IsNullOrWhiteSpace(result.GroupTitle) ? "Otros" : result.GroupTitle,
-                    TVGLogo = string.IsNullOrWhiteSpace(result.TVGLogo)
-                        ? "https://listaiptvtelevision.com/wp-content/uploads/m3u.png"
-                        : result.TVGLogo,
-                    TVGId = result.TVGId,
-                    ChannelName = string.IsNullOrWhiteSpace(result.ChannelName) ? "Unknown" : result.ChannelName,
-                    StreamUrl = result.StreamUrl.Trim(),
-                    Order = nextOrder++
-                });
-            }
-
-            entries = entries
-                .GroupBy(e => e.StreamUrl.Trim(), StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.First())
-                .OrderBy(e => e.Order)
-                .ToList();
-
-            _service.SaveEntries(entries);
-            TempData["Message"] = $"Importación completada: {model.Results.Count} resultados procesados.";
-            return RedirectToAction(nameof(Index));
-        }
-
-        private async Task<List<M3UEntry>> ConvertInfohashesToContentIdsAsync(
-            HttpClient client,
-            List<M3UEntry> results)
-        {
-            var convertedResults = new List<M3UEntry>();
-
-            foreach (var result in results)
-            {
-                var infohash = ExtractInfohash(result.StreamUrl);
-                if (string.IsNullOrWhiteSpace(infohash))
-                {
-                    convertedResults.Add(result);
-                    continue;
-                }
-
-                try
-                {
-                    var contentId = await GetContentIdAsync(client, infohash);
-                    result.StreamUrl = $"acestream://{contentId}";
-                    convertedResults.Add(result);
-                }
-                catch (InvalidOperationException)
-                {
-                    // El contenido puede haber desaparecido del motor. No se muestra
-                    // ni se importa un resultado que siga apuntando al infohash.
-                }
-            }
-
-            return convertedResults;
-        }
-
-        private async Task<string> GetContentIdAsync(HttpClient client, string infohash)
-        {
-            var encodedInfohash = Uri.EscapeDataString(infohash);
-            var apiUrl = $"{MonitoringServerUrl}/server/api?api_version=3&method=get_content_id&infohash={encodedInfohash}";
-            using var response = await client.GetAsync(apiUrl);
-            response.EnsureSuccessStatusCode();
-
-            await using var responseStream = await response.Content.ReadAsStreamAsync();
-            using var json = await JsonDocument.ParseAsync(responseStream);
-
-            if (json.RootElement.TryGetProperty("result", out var result) &&
-                result.TryGetProperty("content_id", out var contentId) &&
-                !string.IsNullOrWhiteSpace(contentId.GetString()))
-            {
-                return contentId.GetString()!;
-            }
-
-            throw new InvalidOperationException($"No se pudo obtener content_id para el infohash {infohash}.");
-        }
-
-        private static string? ExtractInfohash(string? streamUrl)
-        {
-            if (string.IsNullOrWhiteSpace(streamUrl))
-                return null;
-
-            var value = streamUrl.Trim();
-
-            // El buscador devuelve normalmente una URL como:
-            // https://servidor/ace/getstream?infohash=...
-            if (Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
-                !string.IsNullOrWhiteSpace(uri.Query))
-            {
-                var infohashFromUrl = GetQueryParameter(uri.Query.TrimStart('?'), "infohash");
-                if (!string.IsNullOrWhiteSpace(infohashFromUrl))
-                    return infohashFromUrl;
-            }
-
-            if (value.StartsWith("acestream://", StringComparison.OrdinalIgnoreCase))
-            {
-                var infohash = value["acestream://".Length..].Trim();
-                return infohash.Contains('=') ? null : infohash;
-            }
-
-            if (value.StartsWith("acestream:?", StringComparison.OrdinalIgnoreCase))
-            {
-                var query = value["acestream:?".Length..];
-                return GetQueryParameter(query, "infohash");
-            }
-
-            if (value.StartsWith("magnet:?", StringComparison.OrdinalIgnoreCase))
-            {
-                var query = value["magnet:?".Length..];
-                var xt = GetQueryParameter(query, "xt");
-                const string prefix = "urn:btih:";
-                return xt?.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) == true
-                    ? xt[prefix.Length..]
-                    : null;
-            }
-
-            return null;
-        }
-
-        private static string? GetQueryParameter(string query, string parameterName)
-        {
-            foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var separator = part.IndexOf('=');
-                if (separator <= 0) continue;
-
-                var name = Uri.UnescapeDataString(part[..separator]);
-                if (!name.Equals(parameterName, StringComparison.OrdinalIgnoreCase)) continue;
-
-                return Uri.UnescapeDataString(part[(separator + 1)..]);
-            }
-
-            return null;
+            return View(model);
         }
 
         /// <summary>
         /// Endpoint que devuelve un fichero M3U dinámico procesado según el id proporcionado.
         /// Replica la funcionalidad del script PHP original.
         /// </summary>
-        /// <param name="id">Identificador del servidor de destino (se lee del fichero import/listam3u)</param>
+        /// <param name="id">Identificador del servidor de destino configurado en SQLite</param>
+        /// <param name="format">Formato de salida opcional: mpegts (predeterminado) o hls</param>
         /// <returns>Contenido M3U con content-type audio/x-mpegurl</returns>
         [HttpGet("stream")]
-        public async Task<IActionResult> Stream(string? id)
+        public IActionResult Stream(string? id, string? format = null)
         {
-            if (string.IsNullOrWhiteSpace(id) || !_serverMappings.TryGetValue(id, out var userIp))
+            var outputFormat = string.IsNullOrWhiteSpace(format)
+                ? "mpegts"
+                : format.Trim().ToLowerInvariant();
+
+            if (outputFormat is not "mpegts" and not "hls")
             {
-                return BadRequest("Parámetro 'id' requerido. Valores válidos: " + string.Join(", ", _serverMappings.Keys));
+                return BadRequest("Parámetro 'format' no válido. Valores permitidos: mpegts o hls.");
             }
 
             try
             {
-                var client = _httpClientFactory.CreateClient();
-
-                // 1. Leer fichero local custom_ace.txt
-                var customAcePath = Path.Combine(_env.ContentRootPath, "import", "lista.m3u");
-                var customUrls = string.Empty;
-                if (System.IO.File.Exists(customAcePath))
-                {
-                    customUrls = await System.IO.File.ReadAllTextAsync(customAcePath, Encoding.UTF8);
-                }
-
-                // 2. Obtener búsqueda del servidor de monitorización
-                var searchQuery = "liga%20OR%20campeones%20OR%20dazn%20OR%20madrid%20OR%20copa%20OR%20vamos%20OR%20deportes%20OR%20nba%20OR%20espn%20OR%20eurosport%20OR%20Movistar";
-                var searchUrl = $"{MonitoringServerUrl}/search.m3u?query={searchQuery}";
-
-                var searchString = await client.GetStringAsync(searchUrl);
-
-                // 3. Eliminar #EXTM3U extra del contenido remoto
-                searchString = searchString.Replace("#EXTM3U", "", StringComparison.OrdinalIgnoreCase);
-
-                // 4. Concatenar contenidos (customUrls + searchString)
-                var vdata = customUrls + searchString;
-
-                // 5. Reemplazar acestream:// por URL del usuario
-                vdata = vdata.Replace("acestream://", $"{userIp}/ace/getstream?id=");
-
-                // 6. Reemplazar URL del servidor de monitorización por userIp
-                vdata = vdata.Replace(MonitoringServerUrl, userIp);
-
-                // 7. Eliminar canales ELCANO (case insensitive) y la línea siguiente
-                var lines = vdata.Split('\n');
-                var filteredLines = new List<string>();
-                var skipNext = false;
-
-                foreach (var line in lines)
-                {
-                    if (skipNext)
-                    {
-                        skipNext = false;
-                        continue;
-                    }
-
-                    if (line.Contains("ELCANO", StringComparison.OrdinalIgnoreCase))
-                    {
-                        skipNext = true;
-                        continue;
-                    }
-
-                    filteredLines.Add(line);
-                }
-
-                vdata = string.Join('\n', filteredLines);
-
-                // 8. Devolver con content-type M3U
+                var vdata = BuildStreamContent(id, outputFormat);
                 return Content(vdata, "audio/x-mpegurl", Encoding.UTF8);
             }
-            catch (HttpRequestException ex)
+            catch (ArgumentException ex)
             {
-                return StatusCode(502, $"Error al conectar con el servidor de monitorización: {ex.Message}");
+                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
                 return StatusCode(500, $"Error interno: {ex.Message}");
             }
+        }
+
+        private string BuildStreamContent(string? id, string outputFormat)
+        {
+            var serverMappings = _serverMappingService.LoadDictionary();
+            if (string.IsNullOrWhiteSpace(id) || !serverMappings.TryGetValue(id, out var userIp))
+            {
+                throw new ArgumentException(
+                    "Parámetro 'id' requerido. Valores válidos: " + string.Join(", ", serverMappings.Keys));
+            }
+
+            var entries = _service.LoadEntries();
+            var header = _service.LoadPlaylistHeader();
+            var builder = new StringBuilder();
+            builder.AppendLine(header.TrimEnd('\r', '\n'));
+            builder.AppendLine();
+
+            var aceStreamUrl = userIp.Equals("acestream://", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : outputFormat == "hls"
+                    ? $"{userIp}/ace/manifest.m3u8?id="
+                    : $"{userIp}/ace/getstream?id=";
+
+            foreach (var entry in entries)
+            {
+                var streamUrl = entry.StreamUrl;
+                if (aceStreamUrl is not null)
+                {
+                    streamUrl = streamUrl.Replace("acestream://", aceStreamUrl, StringComparison.OrdinalIgnoreCase);
+                    streamUrl = streamUrl.Replace(_monitoringServerUrl, userIp, StringComparison.OrdinalIgnoreCase);
+                }
+
+                var logo = string.IsNullOrWhiteSpace(entry.TVGLogo) ? "" : $" tvg-logo=\"{entry.TVGLogo}\"";
+                var tvgId = string.IsNullOrWhiteSpace(entry.TVGId)
+                    ? $" tvg-id=\"{entry.GroupTitle}\""
+                    : $" tvg-id=\"{entry.TVGId}\"";
+                var group = string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Otros" : entry.GroupTitle;
+
+                builder.AppendLine($"#EXTINF:-1{logo}{tvgId} group-title=\"{group}\", {entry.ChannelName}");
+                builder.AppendLine(streamUrl);
+            }
+
+            return builder.ToString();
         }
 
     }

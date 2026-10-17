@@ -1,15 +1,12 @@
 ﻿@model coreAPI.Models.M3UEntry
 @{
-    ViewData["Title"] = (Model.Id == 0 ? "Crear" : "Editar") + " entrada M3U";
+    ViewData["Title"] = "Editar entrada M3U";
 }
 <h2>@ViewData["Title"]</h2>
 
-<form asp-action="@(Model.Id == 0 ? "Create" : "Edit")" method="post">
+<form asp-action="Edit" method="post">
     @Html.AntiForgeryToken()
-    @if (Model.Id != 0)
-    {
-        <input type="hidden" asp-for="Id" />
-    }
+    <input type="hidden" asp-for="Id" />
     <div class="mb-3">
         <label class="form-label">Grupo</label>
         <input class="form-control" asp-for="GroupTitle" />

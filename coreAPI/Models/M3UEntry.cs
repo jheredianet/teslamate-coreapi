@@ -21,8 +21,5 @@ namespace coreAPI.Models
         [StringLength(128)]
         public string? TVGId { get; set; }
 
-
-        // Mantener orden explícito en el fichero
-        public int Order { get; set; }
     }
 }

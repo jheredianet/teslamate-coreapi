@@ -1,0 +1,29 @@
+﻿@model coreAPI.Models.M3USearchViewModel
+@{
+    ViewData["Title"] = "Buscar canales M3U";
+}
+
+<h2>Buscar canales M3U</h2>
+
+<form asp-action="Search" method="post" class="mb-4">
+    @Html.AntiForgeryToken()
+    <div class="mb-3">
+        <label for="searchQuery" class="form-label">Términos de búsqueda</label>
+        <input id="searchQuery" name="searchQuery" value="@Model.SearchQuery" class="form-control"
+               placeholder="Ej.: liga, campeones, dazn" />
+        <div class="form-text">Puedes indicar varios términos separados por comas.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Buscar</button>
+    <a href="@Url.Action("Index")" class="btn btn-secondary">Cancelar</a>
+</form>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-warning">@Model.ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.RawJson))
+{
+    <h3 class="mt-4">Respuesta JSON</h3>
+    <pre class="bg-dark text-light p-3 rounded" style="max-height: 70vh; overflow: auto;"><code>@Model.RawJson</code></pre>
+}

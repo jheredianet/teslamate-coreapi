@@ -1,0 +1,79 @@
+﻿@model coreAPI.Models.M3UExportViewModel
+@{
+    ViewData["Title"] = "Exportar M3U";
+}
+
+<h2>Exportar M3U</h2>
+<p>Selecciona el servidor que se utilizará para generar las URLs de los canales.</p>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-warning">@Model.ErrorMessage</div>
+}
+
+<form asp-action="Download" method="post">
+    @Html.AntiForgeryToken()
+    <div class="mb-3">
+        <label for="serverId" class="form-label">Identificador del servidor</label>
+        <select id="serverId" name="serverId" class="form-select" required>
+            <option value="">Selecciona un servidor</option>
+            @foreach (var server in Model.Servers)
+            {
+                <option value="@server.Name" selected="@(server.Name == Model.SelectedServerId ? "selected" : null)">
+                    @server.Name (@server.BaseUrl)
+                </option>
+            }
+        </select>
+    </div>
+    <fieldset class="mb-3">
+        <legend class="fs-6">Formato</legend>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="format" id="format-mpegts"
+                   value="mpegts" checked="@(Model.Format == "mpegts" ? "checked" : null)" />
+            <label class="form-check-label" for="format-mpegts">MPEG-TS</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="radio" name="format" id="format-hls"
+                   value="hls" checked="@(Model.Format == "hls" ? "checked" : null)" />
+            <label class="form-check-label" for="format-hls">HLS</label>
+        </div>
+    </fieldset>
+
+    <div class="mb-3">
+        <label class="form-label" for="stream-link">Enlace de la lista</label>
+        <a id="stream-link" href="#" class="d-block text-break">Selecciona un servidor</a>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Descargar</button>
+    <a class="btn btn-secondary" href="@Url.Action("Index")">Cancelar</a>
+</form>
+
+<script>
+    (() => {
+        const serverSelect = document.getElementById('serverId');
+        const formatInputs = document.querySelectorAll('input[name="format"]');
+        const streamLink = document.getElementById('stream-link');
+        // Usa el protocolo visible para el navegador. Detrás de un proxy HTTPS,
+        // el backend puede recibir internamente la petición como HTTP.
+        const streamBaseUrl = window.location.origin;
+
+        function updateStreamLink() {
+            const serverId = serverSelect.value;
+            const format = document.querySelector('input[name="format"]:checked')?.value || 'mpegts';
+
+            if (!serverId) {
+                streamLink.href = '#';
+                streamLink.textContent = 'Selecciona un servidor';
+                return;
+            }
+
+            const url = `${streamBaseUrl}/stream?id=${encodeURIComponent(serverId)}&format=${encodeURIComponent(format)}`;
+            streamLink.href = url;
+            streamLink.textContent = url;
+        }
+
+        serverSelect.addEventListener('change', updateStreamLink);
+        formatInputs.forEach(input => input.addEventListener('change', updateStreamLink));
+        updateStreamLink();
+    })();
+</script>

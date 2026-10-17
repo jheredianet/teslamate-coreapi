@@ -13,6 +13,12 @@
         @TempData["Message"]
     </div>
 }
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">
+        @TempData["ErrorMessage"]
+    </div>
+}
 
 
 <form method="get" class="mb-3">
@@ -25,20 +31,24 @@
         }
     </select>
     <button type="submit">Filtrar</button>
-    <a href="@Url.Action("Index", "M3U")">Limpiar</a>
 </form>
 
-<p>
+<div class="mb-3 d-flex align-items-center gap-2">
     <a class="btn btn-primary" href="@Url.Action("Create")">Agregar nuevo</a>
     <a class="btn btn-primary" href="@Url.Action("Download")">Exportar M3U</a>
-    <a class="btn btn-primary" href="@Url.Action("Import")">Buscar e importar M3U</a>
-    <a class="btn btn-warning" href="@Url.Action("ValidateChannels")">Validar Canales</a>
-</p>
+    <a class="btn btn-primary" href="@Url.Action("Search")">Buscar</a>
+    <form asp-action="Synchronize" method="post" class="d-inline-block m-0">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn btn-success"
+                onclick="return confirm('¿Sincronizar la lista con la fuente principal? Los canales remotos reemplazarán los datos de los canales con el mismo id AceStream.');">
+            Sincronizar
+        </button>
+    </form>
+</div>
 
-<table class="table table-dark table-striped">
+<table id="m3u-list" class="table table-dark table-striped">
     <thead>
         <tr>
-            <th>Orden</th>
             <th>Logo</th>
             <th>Canal</th>
             <th>Grupo</th>
@@ -47,10 +57,9 @@
         </tr>
     </thead>
     <tbody>
-        @foreach (var item in Model.OrderBy(e => e.Order))
+        @foreach (var item in Model)
         {
             <tr>
-                <td>@item.Order</td>
                 <td>
                     @if (!string.IsNullOrWhiteSpace(item.TVGLogo))
                     {
@@ -61,32 +70,17 @@
                 <td>@item.GroupTitle</td>
                 <td>@item.StreamUrl</td>
                 <td>
-                    <form asp-action="MoveUp" method="post" style="display:inline">
-                        <input type="hidden" name="id" value="@item.Id" />
-                        <button class="btn btn-sm btn-outline-secondary" type="submit">↑</button>
-                        @Html.AntiForgeryToken()
-                    </form>
-                    <form asp-action="MoveDown" method="post" style="display:inline">
-                        <input type="hidden" name="id" value="@item.Id" />
-                        <button class="btn btn-sm btn-outline-secondary" type="submit">↓</button>
-                        @Html.AntiForgeryToken()
-                    </form>
-                    <a class="btn btn-sm btn-warning" href="@Url.Action("Edit", new { id = item.Id })">Editar</a>
-                    <form asp-action="Delete" method="post" style="display:inline" onsubmit="return confirm('¿Eliminar?');">
-                        <input type="hidden" name="id" value="@item.Id" />
-                        <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
-                        @Html.AntiForgeryToken()
-                    </form>
+                    <div class="d-flex align-items-center gap-1">
+                        <a class="btn btn-sm btn-warning" href="@Url.Action("Edit", new { id = item.Id })">Editar</a>
+                        <form asp-action="Delete" method="post" class="m-0" onsubmit="return confirm('¿Eliminar?');">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <button class="btn btn-sm btn-danger" type="submit">Eliminar</button>
+                            @Html.AntiForgeryToken()
+                        </form>
+                        <a class="btn btn-sm btn-primary" href="@Url.Action("Info", new { id = item.Id })">Info</a>
+                    </div>
                 </td>
             </tr>
         }
     </tbody>
 </table>
-
-<form asp-action="CleanDuplicates" method="post" style="display:inline">
-    @Html.AntiForgeryToken()
-    <button type="submit" class="btn btn-danger"
-            onclick="return confirm('¿Eliminar duplicados y aplicar valores por defecto?');">
-        Limpiar duplicados
-    </button>
-</form>
