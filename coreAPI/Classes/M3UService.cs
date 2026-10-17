@@ -1,5 +1,4 @@
-﻿using System.Text;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
@@ -9,9 +8,7 @@ namespace coreAPI.Classes
 {
     public class M3UService
     {
-        private readonly string _filePath;
         private readonly string _databasePath;
-        private readonly int _backupRetention;
         private static readonly object _fileLock = new();
 
         private static readonly Regex GroupRegex = new(@"group-title=""(.*?)""", RegexOptions.Compiled);
@@ -24,15 +21,9 @@ namespace coreAPI.Classes
 
         public M3UService(IOptions<M3UOptions> options)
         {
-            _filePath = Path.GetFullPath(options.Value.FilePath);
             _databasePath = Path.GetFullPath(options.Value.DatabasePath);
-            _backupRetention = Math.Max(0, options.Value.BackupRetention);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
             Directory.CreateDirectory(Path.GetDirectoryName(_databasePath)!);
-
-            if (!File.Exists(_filePath))
-                File.WriteAllText(_filePath, "#EXTM3U\n", Encoding.UTF8);
 
             InitializeDatabase();
         }
@@ -64,6 +55,15 @@ namespace coreAPI.Classes
                 }
 
                 return OrderEntries(entries);
+            }
+        }
+
+        public string LoadPlaylistHeader()
+        {
+            lock (_fileLock)
+            {
+                using var connection = OpenConnection();
+                return LoadPlaylistHeader(connection);
             }
         }
 
@@ -115,7 +115,6 @@ namespace coreAPI.Classes
                 var ordered = OrderEntries(entries);
 
                 using var connection = OpenConnection();
-                var storedHeader = header ?? LoadPlaylistHeader(connection);
                 using var transaction = connection.BeginTransaction();
 
                 using (var delete = connection.CreateCommand())
@@ -132,9 +131,6 @@ namespace coreAPI.Classes
                     SavePlaylistHeader(connection, transaction, header);
 
                 transaction.Commit();
-
-                CreateBackup();
-                WriteM3uFile(ordered, storedHeader);
             }
         }
 
@@ -296,23 +292,6 @@ namespace coreAPI.Classes
             }
 
             MigrateSortOrderColumn(connection);
-
-            using var count = connection.CreateCommand();
-            count.CommandText = "SELECT COUNT(*) FROM channels;";
-            var channelCount = Convert.ToInt32(count.ExecuteScalar());
-            if (channelCount > 0)
-                return;
-
-            var importedEntries = ParseEntries(File.ReadAllText(_filePath, Encoding.UTF8));
-            if (importedEntries.Count == 0)
-                return;
-
-            importedEntries = OrderEntries(importedEntries);
-
-            using var transaction = connection.BeginTransaction();
-            foreach (var entry in importedEntries)
-                InsertEntry(connection, transaction, entry);
-            transaction.Commit();
         }
 
         private static void MigrateSortOrderColumn(SqliteConnection connection)
@@ -413,49 +392,6 @@ namespace coreAPI.Classes
             else
             {
                 entry.Id = Convert.ToInt32(command.ExecuteScalar());
-            }
-        }
-
-        private void WriteM3uFile(List<M3UEntry> ordered, string header)
-        {
-            var builder = new StringBuilder();
-            builder.AppendLine(header.TrimEnd('\r', '\n'));
-            builder.AppendLine();
-            foreach (var entry in ordered)
-            {
-                var logo = string.IsNullOrWhiteSpace(entry.TVGLogo) ? "" : $" tvg-logo=\"{entry.TVGLogo}\"";
-                var tvgId = string.IsNullOrWhiteSpace(entry.TVGId)
-                    ? $" tvg-id=\"{entry.GroupTitle}\""
-                    : $" tvg-id=\"{entry.TVGId}\"";
-                var group = string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Otros" : entry.GroupTitle;
-
-                builder.AppendLine($"#EXTINF:-1{logo}{tvgId} group-title=\"{group}\", {entry.ChannelName}");
-                builder.AppendLine(entry.StreamUrl);
-            }
-
-            var temporaryPath = _filePath + ".tmp";
-            File.WriteAllText(temporaryPath, builder.ToString(), Encoding.UTF8);
-            File.Copy(temporaryPath, _filePath, overwrite: true);
-            File.Delete(temporaryPath);
-        }
-
-        private void CreateBackup()
-        {
-            if (!File.Exists(_filePath)) return;
-            var directory = Path.GetDirectoryName(_filePath)!;
-            var name = Path.GetFileNameWithoutExtension(_filePath);
-            var extension = Path.GetExtension(_filePath);
-            var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var backup = Path.Combine(directory, $"{name}.{stamp}{extension}.bak");
-            File.Copy(_filePath, backup, overwrite: true);
-
-            if (_backupRetention > 0)
-            {
-                var backups = Directory.GetFiles(directory, $"{name}.*{extension}.bak")
-                    .OrderByDescending(f => f)
-                    .ToList();
-                foreach (var old in backups.Skip(_backupRetention))
-                    File.Delete(old);
             }
         }
 

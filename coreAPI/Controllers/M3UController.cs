@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using coreAPI.Classes;
 using coreAPI.Models;
-using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
 
@@ -12,7 +11,6 @@ namespace coreAPI.Controllers
         private readonly M3UService _service;
         private readonly ServerMappingService _serverMappingService;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IOptions<M3UOptions> _m3uOptions;
         private readonly string _monitoringServerUrl;
         private readonly Uri _monitoringServerUri;
         private const string SyncSourceUrl = M3UService.DefaultSyncSourceUrl;
@@ -21,13 +19,11 @@ namespace coreAPI.Controllers
             M3UService service,
             ServerMappingService serverMappingService,
             IHttpClientFactory httpClientFactory,
-            IOptions<M3UOptions> m3uOptions,
             AppSettings appSettings)
         {
             _service = service;
             _serverMappingService = serverMappingService;
             _httpClientFactory = httpClientFactory;
-            _m3uOptions = m3uOptions;
             if (string.IsNullOrWhiteSpace(appSettings.MonitoringServerUrl))
                 throw new InvalidOperationException("La configuración Settings:MonitoringServerUrl está vacía.");
 
@@ -331,7 +327,7 @@ namespace coreAPI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Download(string serverId)
+        public IActionResult Download(string serverId)
         {
             var model = new M3UExportViewModel
             {
@@ -345,7 +341,7 @@ namespace coreAPI.Controllers
 
             try
             {
-                var content = await BuildStreamContentAsync(serverId, model.Format);
+                var content = BuildStreamContent(serverId, model.Format);
                 return File(Encoding.UTF8.GetBytes(content), "audio/x-mpegurl", "lista.m3u");
             }
             catch (ArgumentException ex)
@@ -410,11 +406,11 @@ namespace coreAPI.Controllers
         /// Endpoint que devuelve un fichero M3U dinámico procesado según el id proporcionado.
         /// Replica la funcionalidad del script PHP original.
         /// </summary>
-        /// <param name="id">Identificador del servidor de destino (se lee del fichero import/listam3u)</param>
+        /// <param name="id">Identificador del servidor de destino configurado en SQLite</param>
         /// <param name="format">Formato de salida opcional: mpegts (predeterminado) o hls</param>
         /// <returns>Contenido M3U con content-type audio/x-mpegurl</returns>
         [HttpGet("stream")]
-        public async Task<IActionResult> Stream(string? id, string? format = null)
+        public IActionResult Stream(string? id, string? format = null)
         {
             var outputFormat = string.IsNullOrWhiteSpace(format)
                 ? "mpegts"
@@ -427,7 +423,7 @@ namespace coreAPI.Controllers
 
             try
             {
-                var vdata = await BuildStreamContentAsync(id, outputFormat);
+                var vdata = BuildStreamContent(id, outputFormat);
                 return Content(vdata, "audio/x-mpegurl", Encoding.UTF8);
             }
             catch (ArgumentException ex)
@@ -440,7 +436,7 @@ namespace coreAPI.Controllers
             }
         }
 
-        private async Task<string> BuildStreamContentAsync(string? id, string outputFormat)
+        private string BuildStreamContent(string? id, string outputFormat)
         {
             var serverMappings = _serverMappingService.LoadDictionary();
             if (string.IsNullOrWhiteSpace(id) || !serverMappings.TryGetValue(id, out var userIp))
@@ -449,42 +445,38 @@ namespace coreAPI.Controllers
                     "Parámetro 'id' requerido. Valores válidos: " + string.Join(", ", serverMappings.Keys));
             }
 
-            var customAcePath = _m3uOptions.Value.FilePath;
-            var vdata = await System.IO.File.ReadAllTextAsync(customAcePath, Encoding.UTF8);
+            var entries = _service.LoadEntries();
+            var header = _service.LoadPlaylistHeader();
+            var builder = new StringBuilder();
+            builder.AppendLine(header.TrimEnd('\r', '\n'));
+            builder.AppendLine();
 
-            // acestream:// indica que se debe conservar cada stream tal como está
-            // almacenado, sin sustituirlo por una URL HTTP del servidor.
-            if (!userIp.Equals("acestream://", StringComparison.OrdinalIgnoreCase))
-            {
-                var aceStreamUrl = outputFormat == "hls"
+            var aceStreamUrl = userIp.Equals("acestream://", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : outputFormat == "hls"
                     ? $"{userIp}/ace/manifest.m3u8?id="
                     : $"{userIp}/ace/getstream?id=";
-                vdata = vdata.Replace("acestream://", aceStreamUrl);
-                vdata = vdata.Replace(_monitoringServerUrl, userIp);
-            }
 
-            var lines = vdata.Split('\n');
-            var filteredLines = new List<string>();
-            var skipNext = false;
-
-            foreach (var line in lines)
+            foreach (var entry in entries)
             {
-                if (skipNext)
+                var streamUrl = entry.StreamUrl;
+                if (aceStreamUrl is not null)
                 {
-                    skipNext = false;
-                    continue;
+                    streamUrl = streamUrl.Replace("acestream://", aceStreamUrl, StringComparison.OrdinalIgnoreCase);
+                    streamUrl = streamUrl.Replace(_monitoringServerUrl, userIp, StringComparison.OrdinalIgnoreCase);
                 }
 
-                if (line.Contains("ELCANO", StringComparison.OrdinalIgnoreCase))
-                {
-                    skipNext = true;
-                    continue;
-                }
+                var logo = string.IsNullOrWhiteSpace(entry.TVGLogo) ? "" : $" tvg-logo=\"{entry.TVGLogo}\"";
+                var tvgId = string.IsNullOrWhiteSpace(entry.TVGId)
+                    ? $" tvg-id=\"{entry.GroupTitle}\""
+                    : $" tvg-id=\"{entry.TVGId}\"";
+                var group = string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Otros" : entry.GroupTitle;
 
-                filteredLines.Add(line);
+                builder.AppendLine($"#EXTINF:-1{logo}{tvgId} group-title=\"{group}\", {entry.ChannelName}");
+                builder.AppendLine(streamUrl);
             }
 
-            return string.Join('\n', filteredLines);
+            return builder.ToString();
         }
 
     }

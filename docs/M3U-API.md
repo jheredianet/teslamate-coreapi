@@ -7,6 +7,7 @@
 - Autenticación: actualmente no hay autenticación implementada en estos endpoints.
 - Identificadores: `id` es el identificador interno de SQLite. El identificador de un canal AceStream es el valor de `StreamUrl` sin el prefijo `acestream://`.
 - Orden: las respuestas se devuelven automáticamente por `GroupTitle`, `ChannelName` e identificador interno. No existe ordenamiento manual.
+- Persistencia: los canales y metadatos se guardan en SQLite. Las respuestas M3U se generan en memoria; no se escriben listas ni backups locales.
 
 ## Modelo `M3UEntry`
 
@@ -145,7 +146,7 @@ GET /stream?id=home&format=hls
 Respuesta `200 OK`:
 
 - Content-Type: `audio/x-mpegurl`.
-- Contenido M3U con la cabecera y los `#EXTGRP` guardados durante la última sincronización.
+- Contenido M3U generado exclusivamente desde los canales y la cabecera guardados en SQLite. El endpoint no lee ni requiere ningún fichero `.m3u`; si la tabla está vacía, devuelve únicamente la cabecera.
 - Para `mpegts`, los canales `acestream://ID` se convierten en `{BaseUrl}/ace/getstream?id=ID`.
 - Para `hls`, se convierten en `{BaseUrl}/ace/manifest.m3u8?id=ID`.
 

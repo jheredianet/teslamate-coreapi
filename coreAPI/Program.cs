@@ -46,7 +46,6 @@ Directory.CreateDirectory(settings.ImportPath);
 builder.Services.AddSingleton(settings);
 builder.Services.AddOptions<M3UOptions>().Configure(options =>
 {
-    options.FilePath = Path.Combine(settings.ImportPath, "lista.m3u");
     options.DatabasePath = Path.Combine(settings.ImportPath, "m3u.sqlite");
 });
 
